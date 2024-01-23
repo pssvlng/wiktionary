@@ -4,6 +4,7 @@ import nltk
 #from nltk.corpus import tiger
 from rdflib import Graph
 from spacy.tokens import MorphAnalysis
+from polyglot.text import Text
 
 from rdflib import Graph
 
@@ -98,9 +99,18 @@ nlp = spacy.load("de_core_news_sm")
 
 # print(" ".join(file_content))
 # sentence_str = " ".join(file_content)
-sentence_str = "mir wird es von ihm fliessend gesagt."
-sentence_str2 = "die schönste Interpretationen von schönen Nachrichten diskutieren"
-doc = nlp(sentence_str2)
-func2(doc)
+#sentence_str = "mir wird es von ihm fliessend gesagt."
+#sentence_str2 = "die schönste Interpretationen von schönen Nachrichten diskutieren"
+#doc = nlp(sentence_str2)
+#func2(doc)
 
+txt =  """
+Ich wohne in Berlin, and ich arbeite für Apple. Ich liebe Kapstadt, und ich besuche Donald Trump in Berlin.
+"""
+doc =  Text(txt, hint_language_code='de')
 
+for entity in doc.entities:
+    print(' '.join(entity))
+
+#for ent in doc.ents:
+#    print(ent.text, ent.label_)

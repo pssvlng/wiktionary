@@ -8,14 +8,14 @@ from passivlingo_dictionary.models.SearchParam import SearchParam
 
 from shared import *
 
-def add_wordnet_annotations(g, subject, alt_label, lang='de'):            
+def add_wordnet_annotations(g, subject, text, lang='de'):            
     exclusions = ['--',"'", "...", "…", "`", '"', '|', '-', '.', ':', '!', '?', ',', '%', '^', '(', ')', '$', '#', '@', '&', '*']
-    context_uri = URIRef(f'{subject}_nif=context_char=0,{len(alt_label)}')
+    context_uri = URIRef(f'{subject}_nif=context_char=0,{len(text)}')
 
-    tag_results = tag_text(alt_label, lang)
+    tag_results = tag_text(text, lang)
     wordTags = tag_results[0]
-    dbpedia_entities = tag_results[1]                
-    wordTags = merge_lists(dbpedia_entities, wordTags)        
+    named_entities = tag_results[1]                
+    wordTags = merge_lists(named_entities, wordTags)        
 
     dict = Dictionary()
     merge_results = []
@@ -27,7 +27,7 @@ def add_wordnet_annotations(g, subject, alt_label, lang='de'):
         word.linked_data = t[5]      
         word.lang = lang
         if len([x for x in ["'", "...", "…", "`", '"', '|'] if x in t[0]]) <= 0 and t[1] in ['VERB', 'NOUN', 'ADV', 'ADJ']:                
-            word.pos = getSpacyToWordnetPosMapping(t[1])                     
+            word.pos = getSpacyToOliaPosMapping(t[1])                     
             word.lemma = t[2]
 
         merge_results.append(word)                  
@@ -46,13 +46,17 @@ def add_wordnet_annotations(g, subject, alt_label, lang='de'):
             annotation_uri = URIRef(f'{subject}_a=spacy_char={start_index},{end_index}')            
             for item in value.linked_data:
                 tup = spacy_to_olia[item]
-                add_unique_triple(g, annotation_uri, URIRef(tup[0]), URIRef(tup[1]))                    
-            if word.isPropNoun:
+                if tup:
+                    add_unique_triple(g, annotation_uri, URIRef(tup[0]), URIRef(tup[1]))                    
+            if value.isPropNoun:
                 add_unique_triple(g, annotation_uri, RDF.type, URIRef(f'{lexinfo_uri}ProperNoun'))                                                                            
-                add_unique_triple(g, annotation_uri, itsrdf.taIdentRef, URIRef(ili))
+                dbnary_uri = get_dbnary_uri_prop_noun(value.lemma)                
             else:
-                add_unique_triple(g, annotation_uri, itsrdf.taIdentRef, URIRef(ili))    
-                
+                dbnary_uri = get_dbnary_uri(value.lemma, value.pos)                
+
+            if dbnary_uri:
+                    add_unique_triple(g, annotation_uri, itsrdf.taIdentRef, URIRef(dbnary_uri))    
+
             if len(dict.findWords(param)) == 0:                
                 start_index = len(''.join([obj.name + obj.whitespace for obj in merge_results[:index]]))
                 end_index = start_index + len(value.name)
@@ -79,8 +83,7 @@ def get_nif_literals_curriculum():
     select distinct * where {
                  ?s a <https://w3id.org/curriculum/CompetenceItem>  .
                  ?s <http://www.w3.org/2004/02/skos/core#prefLabel>  ?l .             
-             }                                               
-             LIMIT 10
+             }                                                            
     """,
     """
     select distinct * where {
