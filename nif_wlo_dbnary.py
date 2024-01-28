@@ -32,6 +32,7 @@ def add_wordnet_annotations_wlo(g, subject, name, description, keyword, keyword_
             for t in wordTags:            
                 word = ContextWord()            
                 word.name = t[0]
+                word.whitespace = t[3]            
                 word.isPropNoun = t[4]      
                 word.linked_data = t[5]      
                 word.lang = lang
@@ -55,8 +56,12 @@ def add_wordnet_annotations_wlo(g, subject, name, description, keyword, keyword_
                     start_index = len(''.join([obj.name + obj.whitespace for obj in merge_results[:index]]))
                     end_index = start_index + len(value.name)
                     annotation_uri = URIRef(f'{subject}_a=spacy_p={item["p"]}_char={start_index},{end_index}')            
-                    for item in value.linked_data:
-                        tup = spacy_to_olia[item]
+                    lexinfo_pos = f'{lexinfo_uri}{value.pos}'
+                    lexinfo_pos_prop = f'{lexinfo_uri}partOfSpeech'
+                    add_unique_triple(g,annotation_uri, RDF.type, URIRef(lexinfo_pos))        
+                    add_unique_triple(g,annotation_uri, URIRef(lexinfo_pos_prop), URIRef(lexinfo_pos))        
+                    for grammar_item in value.linked_data:
+                        tup = spacy_to_olia[grammar_item]
                         if tup:
                             add_unique_triple(g, annotation_uri, URIRef(tup[0]), URIRef(tup[1]))                    
                     if value.isPropNoun:
@@ -65,12 +70,13 @@ def add_wordnet_annotations_wlo(g, subject, name, description, keyword, keyword_
                     else:
                         dbnary_uri = get_dbnary_uri(value.lemma, value.pos)                
                     if dbnary_uri:
-                        add_unique_triple(g, annotation_uri, itsrdf.taIdentRef, URIRef(dbnary_uri))        
+                        add_unique_triple(g, annotation_uri, itsrdf.termInfoRef, URIRef(dbnary_uri))        
 
                     if len(dict.findWords(param)) == 0:                                                                                    
                         olia_pos = f'{olia_uri}{value.pos.title()}'
+                        
                         add_unique_triple(g,annotation_uri, RDF.type, nif.Phrase)                        
-                        add_unique_triple(g,annotation_uri, RDF.type, URIRef(olia_pos))        
+                        add_unique_triple(g,annotation_uri, RDF.type, URIRef(olia_pos))                                
                         add_unique_triple(g,annotation_uri, nif.beginIndex, Literal(start_index, datatype=XSD.nonNegativeInteger))
                         add_unique_triple(g,annotation_uri, nif.endIndex, Literal(end_index, datatype=XSD.nonNegativeInteger))
                         add_unique_triple(g,annotation_uri, nif.anchorOf, Literal(value.name))
