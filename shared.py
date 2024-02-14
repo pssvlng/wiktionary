@@ -6,7 +6,9 @@ from rdflib import Namespace
 import spacy
 from spacy.tokens import MorphAnalysis
 from collections import defaultdict
-from queries import WIKTIONARY_DB_ADJECTIVES_SMALL_SELECT, WIKTIONARY_DB_ADVERBS_SMALL_SELECT, WIKTIONARY_DB_NOUNS_SMALL_SELECT, WIKTIONARY_DB_PROPER_NOUNS_SMALL_SELECT, WIKTIONARY_DB_VERBS_SMALL_SELECT
+#from queries import WIKTIONARY_DB_ADJECTIVES_SMALL_SELECT, WIKTIONARY_DB_ADVERBS_SMALL_SELECT, WIKTIONARY_DB_NOUNS_SMALL_SELECT, WIKTIONARY_DB_PROPER_NOUNS_SMALL_SELECT, WIKTIONARY_DB_VERBS_SMALL_SELECT
+import queries
+import queries_en
 from polyglot.text import Text
 
 lexvo = {}
@@ -59,36 +61,56 @@ def get_pos_lookup_dict(db_name, query):
     conn.close()
     return result
 
-def get_dbnary_uri_prop_noun(lemma):
-    proper_noun_lookup[lemma.upper()]
+def get_dbnary_uri_prop_noun(lemma, lang = 'de'):
+    proper_noun_lookup[lang][lemma.upper()]
 
-def get_dbnary_uri(lemma, pos):
+def get_dbnary_uri(lemma, pos, lang = 'de'):
     if pos == 'verb':
-        return verb_lookup[lemma.upper()]
+        return verb_lookup[lang][lemma.upper()]
     if pos == 'noun':
-        return noun_lookup[lemma.upper()]
+        return noun_lookup[lang][lemma.upper()]
     if pos == 'adverb':
-        return adverb_lookup[lemma.upper()]
+        return adverb_lookup[lang][lemma.upper()]
     if pos == 'adjective':
-        return adjective_lookup[lemma.upper()]
+        return adjective_lookup[lang][lemma.upper()]
     raise Exception("Unknown pos: ", pos)
 
-db_name = 'wiktionary.db'
-noun_lookup = get_pos_lookup_dict(db_name, WIKTIONARY_DB_NOUNS_SMALL_SELECT)
-proper_noun_lookup = get_pos_lookup_dict(db_name, WIKTIONARY_DB_PROPER_NOUNS_SMALL_SELECT)
-verb_lookup = get_pos_lookup_dict(db_name, WIKTIONARY_DB_VERBS_SMALL_SELECT)
-adverb_lookup = get_pos_lookup_dict(db_name, WIKTIONARY_DB_ADVERBS_SMALL_SELECT)
-adjective_lookup = get_pos_lookup_dict(db_name, WIKTIONARY_DB_ADJECTIVES_SMALL_SELECT)
+db_name = {}
+db_name['de'] = 'wiktionary.db'
+db_name['en'] = 'wiktionary_en.db'
+noun_lookup = {}
+noun_lookup['de'] = get_pos_lookup_dict(db_name['de'], queries.WIKTIONARY_DB_NOUNS_SMALL_SELECT)
+noun_lookup['en'] = get_pos_lookup_dict(db_name['en'], queries_en.WIKTIONARY_DB_NOUNS_SMALL_SELECT)
+proper_noun_lookup = {}
+proper_noun_lookup['de'] = get_pos_lookup_dict(db_name['de'], queries.WIKTIONARY_DB_PROPER_NOUNS_SMALL_SELECT)
+proper_noun_lookup['en'] = get_pos_lookup_dict(db_name['en'], queries_en.WIKTIONARY_DB_PROPER_NOUNS_SMALL_SELECT)
+verb_lookup = {}
+verb_lookup['de'] = get_pos_lookup_dict(db_name['de'], queries.WIKTIONARY_DB_VERBS_SMALL_SELECT)
+verb_lookup['en'] = get_pos_lookup_dict(db_name['en'], queries_en.WIKTIONARY_DB_VERBS_SMALL_SELECT)
+adverb_lookup = {}
+adverb_lookup['de'] = get_pos_lookup_dict(db_name['de'], queries.WIKTIONARY_DB_ADVERBS_SMALL_SELECT)
+adverb_lookup['en'] = get_pos_lookup_dict(db_name['en'], queries_en.WIKTIONARY_DB_ADVERBS_SMALL_SELECT)
+adjective_lookup = {}
+adjective_lookup['de'] = get_pos_lookup_dict(db_name['de'], queries.WIKTIONARY_DB_ADJECTIVES_SMALL_SELECT)
+adjective_lookup['en'] = get_pos_lookup_dict(db_name['en'], queries_en.WIKTIONARY_DB_ADJECTIVES_SMALL_SELECT)
 
 nlp = {}
 nlp['en'] = spacy.load('en_core_web_lg') 
-nlp['de'] = spacy.load('de_core_news_lg')    
+nlp['de'] = spacy.load('de_core_news_lg')
+
+spotlight_url = {}
+spotlight_url['de'] = 'https://wlo.yovisto.com/spotlight/annotate'
+spotlight_url['en'] = 'http://localhost:2222/rest/annotate'
 
 word_compare_lookup = {}
 with open('de_0.json', "r") as json_file:
     word_compare_lookup['de_0'] = json.load(json_file)
 with open('de_1.json', "r") as json_file:
     word_compare_lookup['de_1'] = json.load(json_file)      
+with open('en_0.json', "r") as json_file:
+    word_compare_lookup['en_0'] = json.load(json_file)
+with open('en_1.json', "r") as json_file:
+    word_compare_lookup['en_1'] = json.load(json_file)          
 
 nif = Namespace("http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#")
 dbpedia = Namespace("http://dbpedia.org/resource/")
