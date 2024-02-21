@@ -1,12 +1,12 @@
 from collections import defaultdict
 import sys
 from SPARQLWrapper import SPARQLWrapper, JSON
-from rdflib import Graph, URIRef, Literal
+from rdflib import OWL, Graph, URIRef, Literal
 from rdflib.namespace import RDF, XSD, SDO
 import requests
 from ContextWord import ContextWord
 from WeightedWord import WeightedWord
-from queries_en import WORDNET_RDF_2, WORDNET_RDF, WORDNET_RDF_3, WORDNET_RDF_CNT
+from queries_en import WORDNET_RDF_2, WORDNET_RDF, WORDNET_RDF_3, WORDNET_RDF_4, WORDNET_RDF_CNT
 from shared import *
 from SimilarityClassifier import SimilarityClassifier
 from passivlingo_dictionary.Dictionary import Dictionary
@@ -198,7 +198,7 @@ def add_wordnet_annotations(g, subject, definition, definition_key, example, exa
 
     return g   
 
-def get_annotation_text_example(graph, limit: int, offset: int, db_name:str):    
+def get_annotation_text_example(graph, limit: int, offset: int):    
     sparql = SPARQLWrapper("http://localhost:8890/sparql")
     query = WORDNET_RDF_2
     query = query.replace('{LIMIT_VAR}', str(limit))
@@ -221,7 +221,7 @@ def get_annotation_text_example(graph, limit: int, offset: int, db_name:str):
 
     return graph    
 
-def get_annotation_text_def(graph, limit: int, offset: int, db_name:str):    
+def get_annotation_text_def(graph, limit: int, offset: int):    
     sparql = SPARQLWrapper("http://localhost:8890/sparql")
     query = WORDNET_RDF_3
     query = query.replace('{LIMIT_VAR}', str(limit))
@@ -244,6 +244,84 @@ def get_annotation_text_def(graph, limit: int, offset: int, db_name:str):
 
     return graph    
 
+def get_loduri_for_lemmas(graph, limit: int, offset: int):    
+    sparql = SPARQLWrapper("http://localhost:8890/sparql")
+    query = WORDNET_RDF_4
+    query = query.replace('{LIMIT_VAR}', str(limit))
+    query = query.replace('{OFFSET_VAR}', str(offset))
+    sparql.setQuery(query)
+    sparql.setReturnFormat(JSON)
+    results = sparql.query().convert()    
+    
+    cntr = 0        
+    for result in results["results"]["bindings"]:
+        lex_entry = result["lexEntry"]["value"]
+        written_rep = result["writtenRep"]["value"].upper()
+        pos = result["pos"]["value"]
+        if pos in ["https://globalwordnet.github.io/schemas/wn#adjective", "https://globalwordnet.github.io/schemas/wn#adjective_satellite"]:
+            dbnary_lex_entry = adjective_lookup['en'][written_rep]            
+            if dbnary_lex_entry:
+                add_unique_triple(graph, URIRef(lex_entry), OWL.sameAs, URIRef(dbnary_lex_entry))                        
+        if pos == "https://globalwordnet.github.io/schemas/wn#noun":
+            dbnary_lex_entry = noun_lookup['en'][written_rep]
+            if not dbnary_lex_entry:
+                dbnary_lex_entry = proper_noun_lookup['en'][written_rep]
+            if dbnary_lex_entry:
+                add_unique_triple(graph, URIRef(lex_entry), OWL.sameAs, URIRef(dbnary_lex_entry))                        
+        if pos == "https://globalwordnet.github.io/schemas/wn#verb":
+            dbnary_lex_entry = verb_lookup['en'][written_rep]            
+            if dbnary_lex_entry:
+                add_unique_triple(graph, URIRef(lex_entry), OWL.sameAs, URIRef(dbnary_lex_entry))                        
+        if pos == "https://globalwordnet.github.io/schemas/wn#adverb":
+            dbnary_lex_entry = adverb_lookup['en'][written_rep]            
+            if dbnary_lex_entry:
+                add_unique_triple(graph, URIRef(lex_entry), OWL.sameAs, URIRef(dbnary_lex_entry))                        
+
+        cntr += 1
+        if (cntr % 1000 == 0):
+            print(f'Records processed: {cntr} of {len(results["results"]["bindings"])}')
+
+    return graph    
+
+
+def get_lemma_same_as(graph, limit: int, offset: int, source_prefix:str, target_prefix:str, query:str):
+    results = get_same_as(limit, offset, query)
+    cntr = 0        
+    for result in results["results"]["bindings"]:
+        lemma = result["lexEntry"]["value"]
+        subject = lemma.replace(source_prefix, target_prefix)
+        add_unique_triple(graph, URIRef(subject), OWL.sameAs, URIRef(lemma))                        
+
+        cntr += 1
+        if (cntr % 1000 == 0):
+            print(f'Records processed: {cntr} of {len(results["results"]["bindings"])}')
+
+    return graph    
+
+def get_synset_same_as(graph, limit: int, offset: int, source_prefix:str, target_prefix:str, query:str):
+    results = get_same_as(limit, offset, query)
+    cntr = 0        
+    for result in results["results"]["bindings"]:
+        synset = result["synset"]["value"]
+        subject = synset.replace(source_prefix, target_prefix)
+        add_unique_triple(graph, URIRef(subject), OWL.sameAs, URIRef(synset))                        
+
+        cntr += 1
+        if (cntr % 1000 == 0):
+            print(f'Records processed: {cntr} of {len(results["results"]["bindings"])}')
+
+    return graph    
+
+def get_same_as(limit: int, offset: int, query:str):    
+    sparql = SPARQLWrapper("http://localhost:8890/sparql")    
+    query = query.replace('{LIMIT_VAR}', str(limit))
+    query = query.replace('{OFFSET_VAR}', str(offset))
+    sparql.setQuery(query)
+    sparql.setReturnFormat(JSON)
+    return sparql.query().convert()    
+    
+    
+
 CONTEXT_MARGIN = 15   
 db_name = "wiktionary_en.db"
 limit = 10000
@@ -259,7 +337,7 @@ if len(sys.argv) == 4:
         #range: 0-13        
         offset = limit * thread_nr
         graph = Graph()
-        get_annotation_text_def(graph, limit, offset, db_name)    
+        get_annotation_text_def(graph, limit, offset)    
         output_file = f"wordnet_en_definitions_{thread_nr}.ttl"    
         graph.serialize(destination=output_file, format="turtle", encoding='UTF-8')          
     
@@ -267,12 +345,40 @@ if len(sys.argv) == 4:
         #range: 0-6        
         offset = limit * thread_nr  
         graph = Graph()
-        get_annotation_text_example(graph, limit, offset, db_name)
+        get_annotation_text_example(graph, limit, offset)
         output_file = f"wordnet_en_examples_{thread_nr}.ttl"    
         graph.serialize(destination=output_file, format="turtle", encoding='UTF-8')          
 
     if category == "lemma":
-        pass
+        print("Starting Canon Form Insert ...")
+        for x in range(0,17):                
+            offset = 10000 * x                
+            graph = Graph()
+            get_loduri_for_lemmas(graph, limit, offset)
+            output_file = f"wordnet_en_lod_lemmas_{x}.ttl"    
+            graph.serialize(destination=output_file, format="turtle", encoding='UTF-8')    
 
-    if category == "canonical":
-        pass
+    if category == "lemma_same_as":
+        print("Starting lemmas_same_as triples ...")
+        for x in range(0,17):                
+            offset = 10000 * x                
+            graph = Graph()
+            target_prefix = 'https://edu.yovisto.com/resource/wordnet/en/'
+            source_prefix = 'https://en-word.net/'            
+            query = WORDNET_RDF_4
+            get_lemma_same_as(graph, limit, offset, source_prefix, target_prefix, query)
+            output_file = f"wordnet_en_lemmas_same_as{x}.ttl"    
+            graph.serialize(destination=output_file, format="turtle", encoding='UTF-8')    
+
+    if category == "synset_same_as":
+        print("Starting synset_same_as triples ...")
+        for x in range(0,13):                
+            offset = 10000 * x                
+            graph = Graph()
+            target_prefix = 'https://edu.yovisto.com/resource/wordnet/en/'
+            source_prefix = 'https://en-word.net/'            
+            query = WORDNET_RDF_3
+            get_synset_same_as(graph, limit, offset, source_prefix, target_prefix, query)
+            output_file = f"wordnet_en_synsets_same_as{x}.ttl"    
+            graph.serialize(destination=output_file, format="turtle", encoding='UTF-8')    
+

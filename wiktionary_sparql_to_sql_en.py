@@ -6,7 +6,7 @@ import sqlite3
 from SPARQLWrapper import JSON
 from  SPARQLWrapper import SPARQLWrapper
 
-from queries_en import WIKTIONARY_ADJECTIVES_SMALL, WIKTIONARY_ADVERBS_SMALL, WIKTIONARY_DB_ADJECTIVES_SMALL_CREATE, WIKTIONARY_DB_ADJECTIVES_SMALL_INSERT, WIKTIONARY_DB_ADVERBS_SMALL_CREATE, WIKTIONARY_DB_ADVERBS_SMALL_INSERT, WIKTIONARY_DB_NOUNS_SMALL_CREATE, WIKTIONARY_DB_NOUNS_SMALL_INSERT, WIKTIONARY_DB_PROPER_NOUNS_SMALL_CREATE, WIKTIONARY_DB_PROPER_NOUNS_SMALL_INSERT, WIKTIONARY_DB_VERBS_SMALL_CREATE, WIKTIONARY_DB_VERBS_SMALL_INSERT, WIKTIONARY_NOUNS_CNT, WIKTIONARY_NOUNS_SMALL, WIKTIONARY_PROPER_NOUNS_SMALL, WIKTIONARY_VERBS_SMALL
+from queries_en import WIKTIONARY_ADJECTIVES_SMALL, WIKTIONARY_ADVERBS_SMALL, WIKTIONARY_CANON_FORM, WIKTIONARY_DB_ADJECTIVES_SMALL_CREATE, WIKTIONARY_DB_ADJECTIVES_SMALL_INSERT, WIKTIONARY_DB_ADVERBS_SMALL_CREATE, WIKTIONARY_DB_ADVERBS_SMALL_INSERT, WIKTIONARY_DB_CANON_FORM_CREATE, WIKTIONARY_DB_CANON_FORM_INSERT, WIKTIONARY_DB_NOUNS_SMALL_CREATE, WIKTIONARY_DB_NOUNS_SMALL_INSERT, WIKTIONARY_DB_PROPER_NOUNS_SMALL_CREATE, WIKTIONARY_DB_PROPER_NOUNS_SMALL_INSERT, WIKTIONARY_DB_VERBS_SMALL_CREATE, WIKTIONARY_DB_VERBS_SMALL_INSERT, WIKTIONARY_NOUNS_CNT, WIKTIONARY_NOUNS_SMALL, WIKTIONARY_PROPER_NOUNS_SMALL, WIKTIONARY_VERBS_SMALL
 
 def createWiktionaryDB(dbName):
     if os.path.isfile(dbName):
@@ -23,7 +23,10 @@ def createWiktionaryDB(dbName):
     conn.execute(WIKTIONARY_DB_ADVERBS_SMALL_CREATE)    
     print("Table WIKT_ADVERBS_STAGING created successfully")    
     conn.execute(WIKTIONARY_DB_ADJECTIVES_SMALL_CREATE)    
-    print("Table WIKT_ADJECTIVES_STAGING created successfully")    
+    print("Table WIKT_ADJECTIVES_STAGING created successfully")   
+    conn.execute(WIKTIONARY_DB_CANON_FORM_CREATE)    
+    print("Table WIKT_CANON_FORM_STAGING created successfully")   
+    
     conn.close()
 
 def get_wiktionary_cnt(query):
@@ -91,33 +94,59 @@ def get_wiktionary_nouns_small(limit: int, offset: int, db_name:str):
     conn.commit()
     conn.close()
 
-   
+def get_wiktionary_canon_form(limit: int, offset: int, db_name:str):
+    sparql = SPARQLWrapper("https://kaiko.getalp.org/sparql")
+    query = WIKTIONARY_CANON_FORM    
+    query = query.replace('{LIMIT_VAR}', str(limit))
+    query = query.replace('{OFFSET_VAR}', str(offset))
+    sparql.setQuery(query)
+    sparql.setReturnFormat(JSON)
+    results = sparql.query().convert()    
+        
+    data_to_insert = [(result["s"]["value"],
+                        result["canonForm"]["value"], 
+                        result["label"]["value"],
+                        result["pos"]["value"])
+                        for result in results["results"]["bindings"]]
+    
+    conn = sqlite3.connect(db_name)
+    cursor = conn.cursor()
+    cursor.executemany(WIKTIONARY_DB_CANON_FORM_INSERT, data_to_insert)
+    conn.commit()
+    conn.close()
+
+
 #Main Program
 #get_wiktionary_cnt(WIKTIONARY_NOUNS_CNT)
 db_name = "wiktionary_en.db"
 createWiktionaryDB(db_name)    
 
-for x in range(0,73):    
-   print("Starting Noun Insert ...")
-   offset = 10000 * x
-   get_wiktionary_nouns_small(10000, offset, db_name)
+# for x in range(0,170):    
+#    print("Starting Canon Form Insert ...")
+#    offset = 10000 * x
+#    get_wiktionary_canon_form(10000, offset, db_name)
 
-for x in range(0,14):    
-   print("Starting Proper Noun Insert ...")
-   offset = 10000 * x
-   get_wiktionary_proper_nouns_small(10000, offset, db_name, WIKTIONARY_PROPER_NOUNS_SMALL, WIKTIONARY_DB_PROPER_NOUNS_SMALL_INSERT)
+# for x in range(0,73):    
+#    print("Starting Noun Insert ...")
+#    offset = 10000 * x
+#    get_wiktionary_nouns_small(10000, offset, db_name)
 
-for x in range(0,16):    
-   print("Starting Verb Insert ...")
-   offset = 10000 * x
-   get_wiktionary_other_small(10000, offset, db_name, WIKTIONARY_VERBS_SMALL, WIKTIONARY_DB_VERBS_SMALL_INSERT)    
+# for x in range(0,14):    
+#    print("Starting Proper Noun Insert ...")
+#    offset = 10000 * x
+#    get_wiktionary_proper_nouns_small(10000, offset, db_name, WIKTIONARY_PROPER_NOUNS_SMALL, WIKTIONARY_DB_PROPER_NOUNS_SMALL_INSERT)
 
-for x in range(0,20):  
-    print("Starting Adjective Insert ...")  
-    offset = 10000 * x
-    get_wiktionary_other_small(10000, offset, db_name, WIKTIONARY_ADJECTIVES_SMALL, WIKTIONARY_DB_ADJECTIVES_SMALL_INSERT)    
+# for x in range(0,16):    
+#    print("Starting Verb Insert ...")
+#    offset = 10000 * x
+#    get_wiktionary_other_small(10000, offset, db_name, WIKTIONARY_VERBS_SMALL, WIKTIONARY_DB_VERBS_SMALL_INSERT)    
 
-for x in range(0,3):    
-    print("Starting Adverb Insert ...")
-    offset = 10000 * x
-    get_wiktionary_other_small(10000, offset, db_name, WIKTIONARY_ADVERBS_SMALL, WIKTIONARY_DB_ADVERBS_SMALL_INSERT)    
+# for x in range(0,20):  
+#     print("Starting Adjective Insert ...")  
+#     offset = 10000 * x
+#     get_wiktionary_other_small(10000, offset, db_name, WIKTIONARY_ADJECTIVES_SMALL, WIKTIONARY_DB_ADJECTIVES_SMALL_INSERT)    
+
+# for x in range(0,3):    
+#     print("Starting Adverb Insert ...")
+#     offset = 10000 * x
+#     get_wiktionary_other_small(10000, offset, db_name, WIKTIONARY_ADVERBS_SMALL, WIKTIONARY_DB_ADVERBS_SMALL_INSERT)    

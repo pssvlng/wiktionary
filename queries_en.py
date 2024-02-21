@@ -30,6 +30,19 @@ WORDNET_RDF_SELECT_3 = """
 SELECT ?synset, ?def FROM <https://passivlingo.com/graph/wordnet> 
 """
 
+WORDNET_RDF_SELECT_4 = """
+SELECT ?lexEntry, ?writtenRep, ?pos FROM <https://passivlingo.com/graph/wordnet> 
+"""
+
+WORDNET_RDF_BODY_4 = """
+where { 
+?lexEntry a ontolex:LexicalEntry .
+?lexEntry ontolex:canonicalForm ?canon .
+?canon ontolex:writtenRep ?writtenRep .
+?lexEntry wn:partOfSpeech ?pos .
+}
+"""
+
 WORDNET_RDF_BODY = """
 where { 
 ?lexEntry a ontolex:LexicalEntry .
@@ -64,6 +77,7 @@ OFFSET {OFFSET_VAR}
 WORDNET_RDF = f'{WORDNET_RDF_HEADER}{WORDNET_RDF_SELECT}{WORDNET_RDF_BODY}{RDF_FOOTER}'
 WORDNET_RDF_2 = f'{WORDNET_RDF_HEADER}{WORDNET_RDF_SELECT_2}{WORDNET_RDF_BODY_2}{RDF_FOOTER}'
 WORDNET_RDF_3 = f'{WORDNET_RDF_HEADER}{WORDNET_RDF_SELECT_3}{WORDNET_RDF_BODY_3}{RDF_FOOTER}'
+WORDNET_RDF_4 = f'{WORDNET_RDF_HEADER}{WORDNET_RDF_SELECT_4}{WORDNET_RDF_BODY_4}{RDF_FOOTER}'
 WORDNET_RDF_CNT = f'{WORDNET_RDF_HEADER}{WORDNET_RDF_CNT_SELECT}{WORDNET_RDF_BODY}'
 
 
@@ -72,6 +86,14 @@ CREATE TABLE WIKT_NOUNS_SMALL_STAGING
     (SUBJECT          TEXT    NOT NULL,
     LABEL          TEXT    NOT NULL,         
     WRITTEN_REP      TEXT     NOT NULL);
+"""
+
+WIKTIONARY_DB_CANON_FORM_CREATE = """
+CREATE TABLE WIKT_CANON_FORM_STAGING
+    (SUBJECT          TEXT    NOT NULL,
+    CANON_FORM          TEXT    NOT NULL,         
+    WRITTEN_REP      TEXT     NOT NULL,
+    POS      TEXT     NOT NULL);
 """
 
 WIKTIONARY_DB_NOUNS_SMALL_SELECT = """
@@ -179,11 +201,35 @@ AND SUBJECT LIKE '%__1%'
 );
 """
 
+WIKTIONARY_DB_CANON_FORM_SELECT = """
+SELECT * FROM WIKT_CANON_FORM_STAGING
+WHERE SUBJECT LIKE '%/eng/%'
+AND SUBJECT LIKE '%__1%'
+UNION
+SELECT * FROM WIKT_CANON_FORM_STAGING
+WHERE SUBJECT NOT LIKE '%/eng/%'
+AND SUBJECT LIKE '%__1%'
+AND WRITTEN_REP NOT IN 
+(
+SELECT WRITTEN_REP FROM WIKT_CANON_FORM_STAGING
+WHERE SUBJECT LIKE '%/eng/%'
+AND SUBJECT LIKE '%__1%'
+);
+"""
+
 WIKTIONARY_DB_NOUNS_SMALL_INSERT = """
 INSERT INTO WIKT_NOUNS_SMALL_STAGING 
 (SUBJECT,
     LABEL,         
     WRITTEN_REP) VALUES (?, ?, ?)
+"""
+
+WIKTIONARY_DB_CANON_FORM_INSERT = """
+INSERT INTO WIKT_CANON_FORM_STAGING 
+(SUBJECT,
+    CANON_FORM,         
+    WRITTEN_REP,
+    POS) VALUES (?, ?, ?, ?)
 """
 
 WIKTIONARY_DB_PROPER_NOUNS_SMALL_INSERT = """
@@ -225,6 +271,10 @@ prefix rdf:      <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 prefix rdfs:     <http://www.w3.org/2000/01/rdf-schema#> 
 """
 
+WIKTIONARY_CANON_FORM_SELECT = """
+select distinct ?s ?label ?canonForm ?pos 
+"""
+
 WIKTIONARY_NOUNS_SELECT_SMALL = """
 select distinct ?s ?label ?writtenRep 
 """
@@ -235,6 +285,16 @@ select distinct ?s ?label ?writtenRep
 
 WIKTIONARY_NOUNS_CNT_SELECT = """
 SELECT (COUNT(*) AS ?count)
+"""
+
+WIKTIONARY_CANON_FORM_BODY = """
+where { 
+?s lexinfo:partOfSpeech ?pos .
+?s a ontolex:LexicalEntry .
+?s dcterms:language  lexvo:eng .
+?s rdfs:label ?label .
+?s ontolex:canonicalForm ?canonForm .
+}
 """
 
 WIKTIONARY_NOUNS_BODY_SMALL = """
@@ -302,5 +362,35 @@ WIKTIONARY_PROPER_NOUNS_SMALL = f'{WIKTIONARY_QUERY_HEADER}{WIKTIONARY_NOUNS_SEL
 WIKTIONARY_VERBS_SMALL = f'{WIKTIONARY_QUERY_HEADER}{WIKTIONARY_OTHER_SELECT_SMALL}{WIKTIONARY_VERBS_BODY_SMALL}{WIKTIONARY_FOOTER}'
 WIKTIONARY_ADVERBS_SMALL = f'{WIKTIONARY_QUERY_HEADER}{WIKTIONARY_OTHER_SELECT_SMALL}{WIKTIONARY_ADVERBS_BODY_SMALL}{WIKTIONARY_FOOTER}'
 WIKTIONARY_ADJECTIVES_SMALL = f'{WIKTIONARY_QUERY_HEADER}{WIKTIONARY_OTHER_SELECT_SMALL}{WIKTIONARY_ADJECTIVES_BODY_SMALL}{WIKTIONARY_FOOTER}'
+WIKTIONARY_CANON_FORM = f'{WIKTIONARY_QUERY_HEADER}{WIKTIONARY_CANON_FORM_SELECT}{WIKTIONARY_CANON_FORM_BODY}{WIKTIONARY_FOOTER}'
 
 WIKTIONARY_NOUNS_CNT = f'{WIKTIONARY_QUERY_HEADER}{WIKTIONARY_NOUNS_CNT_SELECT}{WIKTIONARY_NOUNS_BODY_SMALL}'
+
+
+
+
+WORDNET_RDF_SUBJECT_HASHED = WORDNET_RDF_HEADER + """
+Select distinct * 
+WHERE {
+  ?subject ?predicate ?object .
+  FILTER(STRSTARTS(STR(?subject), "https://en-word.net/") && CONTAINS(STR(?subject), "#"))  
+}
+""" + RDF_FOOTER
+
+WORDNET_RDF_OBJECT_HASHED = WORDNET_RDF_HEADER + """
+Select distinct * 
+{
+{
+?subject ?predicate ?object .
+FILTER(STRSTARTS(STR(?object), "https://en-word.net/") && CONTAINS(STR(?object), "#"))  
+}
+MINUS
+{
+Select distinct * 
+WHERE {
+  ?subject ?predicate ?object .
+  FILTER(STRSTARTS(STR(?subject), "https://en-word.net/") && CONTAINS(STR(?subject), "#"))  
+}
+}
+}
+""" + RDF_FOOTER

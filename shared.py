@@ -61,8 +61,23 @@ def get_pos_lookup_dict(db_name, query):
     conn.close()
     return result
 
+def get_canon_lookup_dict(db_name, query):
+    result = defaultdict(lambda: None)
+    conn = sqlite3.connect(db_name)
+    cursor = conn.cursor()
+    cursor.execute(query)
+    rows = cursor.fetchall()
+    for row in rows:
+        result[f'{row[0].upper()}'] = row[1]
+    cursor.close()    
+    conn.close()
+    return result    
+
 def get_dbnary_uri_prop_noun(lemma, lang = 'de'):
     proper_noun_lookup[lang][lemma.upper()]
+
+def get_dbnary_uri_canon(subject, lang = 'en'):
+    return canon_lookup[lang][subject]
 
 def get_dbnary_uri(lemma, pos, lang = 'de'):
     if pos == 'verb':
@@ -78,6 +93,10 @@ def get_dbnary_uri(lemma, pos, lang = 'de'):
 db_name = {}
 db_name['de'] = 'wiktionary.db'
 db_name['en'] = 'wiktionary_en.db'
+
+canon_lookup = {}
+canon_lookup['en'] = get_canon_lookup_dict(db_name['en'], queries_en.WIKTIONARY_DB_CANON_FORM_SELECT)
+
 noun_lookup = {}
 noun_lookup['de'] = get_pos_lookup_dict(db_name['de'], queries.WIKTIONARY_DB_NOUNS_SMALL_SELECT)
 noun_lookup['en'] = get_pos_lookup_dict(db_name['en'], queries_en.WIKTIONARY_DB_NOUNS_SMALL_SELECT)
