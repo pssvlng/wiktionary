@@ -40,6 +40,7 @@ where {
 ?lexEntry ontolex:canonicalForm ?canon .
 ?canon ontolex:writtenRep ?writtenRep .
 ?lexEntry wn:partOfSpeech ?pos .
+FILTER(STRSTARTS(STR(?lexEntry), 'https://en-word.net'))
 }
 """
 

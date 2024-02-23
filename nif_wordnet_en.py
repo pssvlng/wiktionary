@@ -261,20 +261,28 @@ def get_loduri_for_lemmas(graph, limit: int, offset: int):
         if pos in ["https://globalwordnet.github.io/schemas/wn#adjective", "https://globalwordnet.github.io/schemas/wn#adjective_satellite"]:
             dbnary_lex_entry = adjective_lookup['en'][written_rep]            
             if dbnary_lex_entry:
+                lex_entry = lex_entry.replace('#', '_')                
+                lex_entry = lex_entry.replace('https://en-word.net/', 'https://edu.yovisto.com/resource/wordnet/en/')
                 add_unique_triple(graph, URIRef(lex_entry), OWL.sameAs, URIRef(dbnary_lex_entry))                        
         if pos == "https://globalwordnet.github.io/schemas/wn#noun":
             dbnary_lex_entry = noun_lookup['en'][written_rep]
             if not dbnary_lex_entry:
                 dbnary_lex_entry = proper_noun_lookup['en'][written_rep]
             if dbnary_lex_entry:
+                lex_entry = lex_entry.replace('#', '_')
+                lex_entry = lex_entry.replace('https://en-word.net/', 'https://edu.yovisto.com/resource/wordnet/en/')
                 add_unique_triple(graph, URIRef(lex_entry), OWL.sameAs, URIRef(dbnary_lex_entry))                        
         if pos == "https://globalwordnet.github.io/schemas/wn#verb":
             dbnary_lex_entry = verb_lookup['en'][written_rep]            
             if dbnary_lex_entry:
+                lex_entry = lex_entry.replace('#', '_')
+                lex_entry = lex_entry.replace('https://en-word.net/', 'https://edu.yovisto.com/resource/wordnet/en/')
                 add_unique_triple(graph, URIRef(lex_entry), OWL.sameAs, URIRef(dbnary_lex_entry))                        
         if pos == "https://globalwordnet.github.io/schemas/wn#adverb":
             dbnary_lex_entry = adverb_lookup['en'][written_rep]            
             if dbnary_lex_entry:
+                lex_entry = lex_entry.replace('#', '_')
+                lex_entry = lex_entry.replace('https://en-word.net/', 'https://edu.yovisto.com/resource/wordnet/en/')
                 add_unique_triple(graph, URIRef(lex_entry), OWL.sameAs, URIRef(dbnary_lex_entry))                        
 
         cntr += 1
@@ -289,7 +297,7 @@ def get_lemma_same_as(graph, limit: int, offset: int, source_prefix:str, target_
     cntr = 0        
     for result in results["results"]["bindings"]:
         lemma = result["lexEntry"]["value"]
-        subject = lemma.replace(source_prefix, target_prefix)
+        subject = lemma.replace(source_prefix, target_prefix)        
         add_unique_triple(graph, URIRef(subject), OWL.sameAs, URIRef(lemma))                        
 
         cntr += 1

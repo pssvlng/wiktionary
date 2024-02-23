@@ -1,7 +1,7 @@
 import shutil
 import os
 from SPARQLWrapper import JSON, SPARQLWrapper
-from rdflib import OWL, Graph, URIRef
+from rdflib import OWL, Graph, Literal, URIRef
 from queries_en import WORDNET_RDF_OBJECT_HASHED, WORDNET_RDF_SUBJECT_HASHED
 from shared import add_unique_triple
 
@@ -53,9 +53,13 @@ def get_unhashed_triples_subject(graph, limit, offset, source_prefix, target_pre
         if object.startswith(source_prefix):
             object = object.replace(source_prefix, target_prefix)
             object = object.replace('#', '_')
-            
-        add_unique_triple(graph, URIRef(subject), URIRef(predicate), URIRef(object))                      
+
+        if result["object"]["type"] == 'uri':        
+            add_unique_triple(graph, URIRef(subject), URIRef(predicate), URIRef(object))                      
+        else:    
+            add_unique_triple(graph, URIRef(subject), URIRef(predicate), Literal(object, lang='en'))
         original_subject = result["subject"]["value"]
+
         new_subject = original_subject.replace(source_prefix, target_prefix)
         add_unique_triple(graph, URIRef(subject), OWL.sameAs, URIRef(new_subject))                        
         add_unique_triple(graph, URIRef(subject), OWL.sameAs, URIRef(original_subject))                        
@@ -88,30 +92,26 @@ def get_unhashed_triples_object(graph, limit, offset, source_prefix, target_pref
 
     return graph    
 
-limit = 10000
-graph = Graph()
-for x in range(0,150):                
-#for x in range(0,1):                
-    offset = limit * x                    
-    target_prefix = 'https://edu.yovisto.com/resource/wordnet/en/'
-    source_prefix = 'https://en-word.net/'            
-    query = WORDNET_RDF_SUBJECT_HASHED
-    get_unhashed_triples_subject(graph, limit, offset, source_prefix, target_prefix, query)
+# limit = 10000
+# for x in range(119,150):                
+#     graph = Graph()
+#     offset = limit * x                    
+#     target_prefix = 'https://edu.yovisto.com/resource/wordnet/en/'
+#     source_prefix = 'https://en-word.net/'            
+#     query = WORDNET_RDF_SUBJECT_HASHED
+#     get_unhashed_triples_subject(graph, limit, offset, source_prefix, target_prefix, query)
+#     output_file = f"wordnet_en_hashed_subject_{x}.ttl"    
+#     graph.serialize(destination=output_file, format="turtle", encoding='UTF-8')    
 
-output_file = f"wordnet_en_hashed_subject.ttl"    
-graph.serialize(destination=output_file, format="turtle", encoding='UTF-8')    
-
-graph = Graph()
-for x in range(0,17):                
-#for x in range(0,1):                
-    offset = limit * x                    
-    target_prefix = 'https://edu.yovisto.com/resource/wordnet/en/'
-    source_prefix = 'https://en-word.net/'            
-    query = WORDNET_RDF_OBJECT_HASHED
-    get_unhashed_triples_object(graph, limit, offset, source_prefix, target_prefix, query)
-
-output_file = f"wordnet_en_hashed_object.ttl"    
-graph.serialize(destination=output_file, format="turtle", encoding='UTF-8')    
+# for x in range(0,17):                
+#     graph = Graph()
+#     offset = limit * x                    
+#     target_prefix = 'https://edu.yovisto.com/resource/wordnet/en/'
+#     source_prefix = 'https://en-word.net/'            
+#     query = WORDNET_RDF_OBJECT_HASHED
+#     get_unhashed_triples_object(graph, limit, offset, source_prefix, target_prefix, query)
+#     output_file = f"wordnet_en_hashed_object_{x}.ttl"    
+#     graph.serialize(destination=output_file, format="turtle", encoding='UTF-8')    
 
 #source_directory = 'prefix_en-wordnet_1'
 #destination_directory = 'prefix_yovisto'
