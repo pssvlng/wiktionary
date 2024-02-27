@@ -1,16 +1,18 @@
 from collections import defaultdict
+import csv
 import sys
 from SPARQLWrapper import SPARQLWrapper, JSON
-from rdflib import OWL, Graph, URIRef, Literal
+from rdflib import OWL, SKOS, Graph, URIRef, Literal
 from rdflib.namespace import RDF, XSD, SDO
 import requests
 from ContextWord import ContextWord
 from WeightedWord import WeightedWord
-from queries_en import WORDNET_RDF_2, WORDNET_RDF, WORDNET_RDF_3, WORDNET_RDF_4, WORDNET_RDF_CNT
+from queries_en import GET_WIKIDATA_ALL_MISMATCH_ID, GET_WIKIDATA_CLASSES, GET_WIKIDATA_MISMATCH, GET_WIKIDATA_URI, SYNSET_NOUNS_STAGING_CREATE, SYNSET_NOUNS_STAGING_INSERT, SYNSET_NOUNS_STAGING_SELECT, SYNSET_NOUNS_STAGING_UPDATE, WIKIDATA_CLASSES_INSERT, WORDNET_RDF_2, WORDNET_RDF, WORDNET_RDF_3, WORDNET_RDF_4, WORDNET_RDF_CNT
 from shared import *
 from SimilarityClassifier import SimilarityClassifier
 from passivlingo_dictionary.Dictionary import Dictionary
 from passivlingo_dictionary.models.SearchParam import SearchParam
+import wn
 
 def get_wordnet_annotation_text_cnt():
     sparql = SPARQLWrapper("http://localhost:8890/sparql")
@@ -328,7 +330,172 @@ def get_same_as(limit: int, offset: int, query:str):
     sparql.setReturnFormat(JSON)
     return sparql.query().convert()    
     
+def add_dbpedia_annotations_synsets(lang):                                                        
+    db_name = f"synset_noun_{lang}.db"
+    conn = sqlite3.connect(db_name)    
+    conn.execute(SYNSET_NOUNS_STAGING_CREATE)    
+    conn.close()
+
+    cntr = 0    
+    synsets = wn.synsets(pos='n', lang='en')
+    data_to_insert = []
+    for synset in synsets:
+        definition = synset.definition()
+        examples = [definition]
+        for example in synset.examples():
+            if example:
+                examples.append(example)
+
+        for lemma in synset.lemmas():
+            spotlight_str = f'{lemma}: {". ".join(examples)}'
+            headers = {
+                "Accept": "application/json",
+            }
+            
+            params = {
+                "text": spotlight_str
+            }
+            try:
+                response = requests.get(spotlight_url[lang], params=params, headers=headers)
+                
+                if response.status_code == 200:
+                    data = response.json()        
+                    annotations = data.get("Resources", [])
+
+                    for _, annotation in enumerate(annotations, start=1):            
+                        surface_form = annotation.get("@surfaceForm", "")
+                        start_index = int(annotation.get("@offset", 0))
+                        if start_index == 0 and surface_form == lemma:
+                            dbpedia_resource = annotation.get("@URI", "")
+                            confidence = annotation.get("@similarityScore", "0")
+                            data_to_insert.append((synset.id, synset.ili.id, lemma, spotlight_str, dbpedia_resource, confidence, "0"))                            
+                                                
+                else:
+                    print(f"Error: {response.status_code} - {response.text}")
+            except:
+                pass
+        cntr += 1
+        if (cntr % 1000 == 0):
+            print(f'Records processed: {cntr} of {len(synsets)}')
+            conn = sqlite3.connect(db_name)
+            cursor = conn.cursor()
+            cursor.executemany(SYNSET_NOUNS_STAGING_INSERT, data_to_insert)
+            conn.commit()
+            conn.close()
+            data_to_insert = []
+
+def add_dbpedia_annotations_synsets(g, source_prefix, lang):
+    db_name = f"synset_noun_{lang}.db"
+    conn = sqlite3.connect(db_name)    
+    cursor = conn.cursor()
+    cursor.execute(SYNSET_NOUNS_STAGING_SELECT)
+    rows = cursor.fetchall()
+    cntr = 0
+    for row in rows:        
+        add_unique_triple(g, URIRef(f'{source_prefix}{row[0]}'), SKOS.closeMatch, URIRef(f'{row[4]}')) 
+        cntr += 1
+        if (cntr % 1000 == 0):
+            print(f'Records processed: {cntr} of {len(rows)}')
+    conn.close()
+    return g
+
+def add_wikidata_links_synsets(lang):
+    db_name = f"synset_noun_{lang}.db"
+    conn = sqlite3.connect(db_name)    
+    cursor = conn.cursor()
+    cursor.execute("select * from SYNSET_NOUNS_STAGING where wikidata IS NULL")
+    rows = cursor.fetchall()    
+    cntr = 0
+    sparql = SPARQLWrapper("https://dbpedia.org/sparql")
+    result_list = []
+    for row in rows:                
+        query = GET_WIKIDATA_URI
+        query = query.replace('{DB_PEDIA_URI}', row[4])        
+        sparql.setQuery(query)
+        sparql.setReturnFormat(JSON)
+        results = sparql.query().convert()            
+        try:
+            wikidata_uri = results["results"]["bindings"][0]["wikidataUri"]["value"]                        
+            result_list.append((wikidata_uri, row[4]))            
+        except Exception as e:
+            print(f"WikiData Uri not found for: {row[4]}")    
+            print(e)                
+        cntr += 1
+
+        if (cntr % 1000 == 0):          
+            cursor.executemany(SYNSET_NOUNS_STAGING_UPDATE, result_list)
+            conn.commit()                          
+            print(f'Records processed: {cntr} of {len(rows)}')
+            result_list.clear()
+
+    cursor.executemany(SYNSET_NOUNS_STAGING_UPDATE, result_list)
+    conn.commit()                          
+    print(f'Records processed: {cntr} of {len(rows)}')    
+    conn.close()
     
+def compare_wikidata_classes(lang):
+    db_name = f"synset_noun_{lang}.db"
+    conn = sqlite3.connect(db_name)    
+    cursor = conn.cursor()
+    cursor.execute(GET_WIKIDATA_ALL_MISMATCH_ID)
+    rows = cursor.fetchall()    
+    cntr = 2000
+    data_to_insert = []
+    sparql = SPARQLWrapper("https://query.wikidata.org/sparql")                    
+    for row in rows[2000:]:           
+        query = GET_WIKIDATA_CLASSES
+        query = query.replace('{WIKIDATA_URI}', row[0])        
+        sparql.setQuery(query)
+        sparql.setReturnFormat(JSON)
+        results = sparql.query().convert()   
+        
+        for result in results["results"]["bindings"]:
+            data_to_insert.append((row[0], result["o"]["value"]))        
+
+        cntr += 1    
+        if (cntr % 100 == 0):                          
+            cursor.executemany(WIKIDATA_CLASSES_INSERT, data_to_insert)
+            conn.commit()                          
+            print(f'Records processed: {cntr} of {len(rows)}')
+            data_to_insert.clear()
+
+    cursor.executemany(WIKIDATA_CLASSES_INSERT, data_to_insert)
+    conn.commit()                          
+    print(f'Records processed: {cntr} of {len(rows)}')            
+    conn.close()
+
+def analyse_wikidata_classes(lang, file_path):
+    result_dict = {}
+    with open(file_path, 'r', newline='') as csvfile:
+        reader = csv.reader(csvfile)
+        for row in reader:
+            key, value = row[0], row[1]            
+            if key in result_dict:                
+                result_dict[key.strip()].add(value.strip())
+            else:                
+                result_dict[key.strip()] = {key.strip(), value.strip()}
+    match_cntr = 0
+    errs = 0
+    db_name = f"synset_noun_{lang}.db"
+    conn = sqlite3.connect(db_name)    
+    cursor = conn.cursor()
+    cursor.execute(GET_WIKIDATA_MISMATCH)
+    rows = cursor.fetchall()            
+    for row in rows:       
+        try:                  
+            set1 = result_dict[row[5]]
+            set2 = result_dict[row[6]]
+            if len(set1.intersection(set2)) > 0:
+                match_cntr += 1
+            else:
+                print(set1)
+                print(set2)
+                print()    
+        except Exception as e:    
+            errs += 1
+
+    print(f"matches: {match_cntr}")
+    print(f"errors: {errs}")
 
 CONTEXT_MARGIN = 15   
 db_name = "wiktionary_en.db"
@@ -390,3 +557,20 @@ if len(sys.argv) == 4:
             output_file = f"wordnet_en_synsets_same_as{x}.ttl"    
             graph.serialize(destination=output_file, format="turtle", encoding='UTF-8')    
 
+    if category == "dbpedia_synset":        
+        lang = 'en'
+        add_dbpedia_annotations_synsets(lang)
+
+    if category == "dbpedia_synset_same_as":
+        graph = Graph()
+        lang = 'en'
+        source_prefix = 'https://edu.yovisto.com/resource/wordnet/en/id/o'
+        add_dbpedia_annotations_synsets(graph, source_prefix, lang)
+        output_file = output_file = f"dbpedia_synset_same_as_{lang}.ttl"                    
+        graph.serialize(destination=output_file, format="turtle", encoding='UTF-8')    
+
+    if category == "dbpedia_synset_wikidata":      
+        lang = 'en'  
+        analyse_wikidata_classes(lang, "wikidata_classes_distinct.csv")
+        #compare_wikidata_classes(lang)
+        #add_wikidata_links_synsets(lang)

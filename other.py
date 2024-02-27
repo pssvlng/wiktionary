@@ -92,6 +92,9 @@ def get_unhashed_triples_object(graph, limit, offset, source_prefix, target_pref
 
     return graph    
 
+def get_wikidata_mappings(db_name):
+    pass
+
 # limit = 10000
 # for x in range(119,150):                
 #     graph = Graph()

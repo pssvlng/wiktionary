@@ -368,8 +368,6 @@ WIKTIONARY_CANON_FORM = f'{WIKTIONARY_QUERY_HEADER}{WIKTIONARY_CANON_FORM_SELECT
 WIKTIONARY_NOUNS_CNT = f'{WIKTIONARY_QUERY_HEADER}{WIKTIONARY_NOUNS_CNT_SELECT}{WIKTIONARY_NOUNS_BODY_SMALL}'
 
 
-
-
 WORDNET_RDF_SUBJECT_HASHED = WORDNET_RDF_HEADER + """
 Select distinct * 
 WHERE {
@@ -395,3 +393,98 @@ WHERE {
 }
 }
 """ + RDF_FOOTER
+
+SYNSET_NOUNS_STAGING_CREATE = """
+CREATE TABLE SYNSET_NOUNS_STAGING
+    (ID          TEXT    NOT NULL,
+    ILI          TEXT    NOT NULL,         
+    LEMMA      TEXT     NOT NULL,
+    CONTENT_STR      TEXT     NOT NULL,
+    DBPEDIA      TEXT     NOT NULL,
+    CONFIDENCE      TEXT     NOT NULL,
+    APPROVED      TEXT     NOT NULL);
+"""
+
+SYNSET_NOUNS_STAGING_INSERT = """
+INSERT INTO SYNSET_NOUNS_STAGING 
+(ID,
+    ILI,         
+    LEMMA,
+    CONTENT_STR,
+    DBPEDIA,
+    CONFIDENCE,
+    APPROVED) VALUES (?, ?, ?, ?, ?, ?, ?)
+"""
+
+SYNSET_NOUNS_STAGING_SELECT = """
+SELECT t1.*
+FROM SYNSET_NOUNS_STAGING t1
+INNER JOIN (
+    SELECT id, MAX(CAST(CONFIDENCE AS DECIMAL(10,6))) AS max_score
+    FROM SYNSET_NOUNS_STAGING
+    GROUP BY id
+) t2 ON t1.id = t2.id AND CAST(t1.CONFIDENCE AS DECIMAL(10,6)) = t2.max_score AND t2.max_score > 0.98
+order by CONFIDENCE
+"""
+
+SYNSET_NOUNS_STAGING_UPDATE = "UPDATE SYNSET_NOUNS_STAGING SET WIKIDATA = ? WHERE DBPEDIA = ?"
+
+GET_WIKIDATA_URI = """
+PREFIX dbo: <http://dbpedia.org/ontology/>
+PREFIX owl: <http://www.w3.org/2002/07/owl#>
+SELECT ?wikidataUri
+WHERE {
+  <{DB_PEDIA_URI}> owl:sameAs ?wikidataUri .
+  FILTER (STRSTARTS(str(?wikidataUri), "http://www.wikidata.org/entity/"))
+}
+"""
+
+GET_WIKIDATA_CLASSES = """
+SELECT *
+WHERE
+{
+  <{WIKIDATA_URI}> (wdt:P31/wdt:P279) ?o  
+}
+"""
+
+GET_WIKIDATA_MISMATCH = """
+SELECT t1.id, t1.ILI, t1.LEMMA, t1.CONTENT_STR, t1.DBPEDIA, t1.WIKIDATA, t3.item
+FROM SYNSET_NOUNS_STAGING t1
+INNER JOIN (
+    SELECT id, MAX(CAST(CONFIDENCE AS DECIMAL(10,6))) AS max_score
+    FROM SYNSET_NOUNS_STAGING
+    GROUP BY id
+) t2 ON t1.id = t2.id AND CAST(t1.CONFIDENCE AS DECIMAL(10,6)) = t2.max_score AND t2.max_score > 0.98
+inner join wikidata_ili as t3 on t1.ili = t3.id
+where t1.WIKIDATA <> t3.item and t1.WIKIDATA <> 'http://www.wikidata.org/entity/Q10299641'
+"""
+
+GET_WIKIDATA_ALL_MISMATCH_ID = """
+Select DISTINCT(wiki_id) FROM
+(
+SELECT t1.WIKIDATA as wiki_id
+FROM SYNSET_NOUNS_STAGING t1
+INNER JOIN (
+    SELECT id, MAX(CAST(CONFIDENCE AS DECIMAL(10,6))) AS max_score
+    FROM SYNSET_NOUNS_STAGING
+    GROUP BY id
+) t2 ON t1.id = t2.id AND CAST(t1.CONFIDENCE AS DECIMAL(10,6)) = t2.max_score AND t2.max_score > 0.98
+inner join wikidata_ili as t3 on t1.ili = t3.id
+where t1.WIKIDATA <> t3.item and t1.WIKIDATA <> 'http://www.wikidata.org/entity/Q10299641'
+UNION
+SELECT t3.item as wiki_id
+FROM SYNSET_NOUNS_STAGING t1
+INNER JOIN (
+    SELECT id, MAX(CAST(CONFIDENCE AS DECIMAL(10,6))) AS max_score
+    FROM SYNSET_NOUNS_STAGING
+    GROUP BY id
+) t2 ON t1.id = t2.id AND CAST(t1.CONFIDENCE AS DECIMAL(10,6)) = t2.max_score AND t2.max_score > 0.98
+inner join wikidata_ili as t3 on t1.ili = t3.id
+where t1.WIKIDATA <> t3.item and t1.WIKIDATA <> 'http://www.wikidata.org/entity/Q10299641'
+)
+"""
+WIKIDATA_CLASSES_INSERT = """
+INSERT INTO wikidata_classes
+(wiki_entity,
+    wiki_class) VALUES (?, ?)
+"""
