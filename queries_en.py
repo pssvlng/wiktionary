@@ -488,3 +488,15 @@ INSERT INTO wikidata_classes
 (wiki_entity,
     wiki_class) VALUES (?, ?)
 """
+
+
+LOD_CLOSE_MATCHES = """
+SELECT t1.ID, t1.ILI, t1.DBPEDIA, t1.WIKIDATA, t3.item
+FROM SYNSET_NOUNS_STAGING t1
+INNER JOIN (
+    SELECT id, MAX(CAST(CONFIDENCE AS DECIMAL(10,6))) AS max_score
+    FROM SYNSET_NOUNS_STAGING
+    GROUP BY id
+) t2 ON t1.id = t2.id AND CAST(t1.CONFIDENCE AS DECIMAL(10,6)) = t2.max_score AND t2.max_score > 0.98
+left join wikidata_ili as t3 on t1.ili = t3.id
+"""

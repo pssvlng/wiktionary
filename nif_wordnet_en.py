@@ -7,7 +7,7 @@ from rdflib.namespace import RDF, XSD, SDO
 import requests
 from ContextWord import ContextWord
 from WeightedWord import WeightedWord
-from queries_en import GET_WIKIDATA_ALL_MISMATCH_ID, GET_WIKIDATA_CLASSES, GET_WIKIDATA_MISMATCH, GET_WIKIDATA_URI, SYNSET_NOUNS_STAGING_CREATE, SYNSET_NOUNS_STAGING_INSERT, SYNSET_NOUNS_STAGING_SELECT, SYNSET_NOUNS_STAGING_UPDATE, WIKIDATA_CLASSES_INSERT, WORDNET_RDF_2, WORDNET_RDF, WORDNET_RDF_3, WORDNET_RDF_4, WORDNET_RDF_CNT
+from queries_en import GET_WIKIDATA_ALL_MISMATCH_ID, GET_WIKIDATA_CLASSES, GET_WIKIDATA_MISMATCH, GET_WIKIDATA_URI, LOD_CLOSE_MATCHES, SYNSET_NOUNS_STAGING_CREATE, SYNSET_NOUNS_STAGING_INSERT, SYNSET_NOUNS_STAGING_SELECT, SYNSET_NOUNS_STAGING_UPDATE, WIKIDATA_CLASSES_INSERT, WORDNET_RDF_2, WORDNET_RDF, WORDNET_RDF_3, WORDNET_RDF_4, WORDNET_RDF_CNT
 from shared import *
 from SimilarityClassifier import SimilarityClassifier
 from passivlingo_dictionary.Dictionary import Dictionary
@@ -388,11 +388,16 @@ def add_dbpedia_annotations_synsets(g, source_prefix, lang):
     db_name = f"synset_noun_{lang}.db"
     conn = sqlite3.connect(db_name)    
     cursor = conn.cursor()
-    cursor.execute(SYNSET_NOUNS_STAGING_SELECT)
+    cursor.execute(LOD_CLOSE_MATCHES)
     rows = cursor.fetchall()
     cntr = 0
     for row in rows:        
-        add_unique_triple(g, URIRef(f'{source_prefix}{row[0]}'), SKOS.closeMatch, URIRef(f'{row[4]}')) 
+        wiki_data_verified = row[4]
+        if wiki_data_verified:
+            add_unique_triple(g, URIRef(f'{source_prefix}{row[0]}'), SKOS.closeMatch, URIRef(f'{wiki_data_verified}'))     
+        else:
+            add_unique_triple(g, URIRef(f'{source_prefix}{row[0]}'), SKOS.closeMatch, URIRef(f'{row[3]}'))         
+        add_unique_triple(g, URIRef(f'{source_prefix}{row[0]}'), SKOS.closeMatch, URIRef(f'{row[2]}')) 
         cntr += 1
         if (cntr % 1000 == 0):
             print(f'Records processed: {cntr} of {len(rows)}')
