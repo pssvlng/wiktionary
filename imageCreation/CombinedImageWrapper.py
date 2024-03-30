@@ -32,6 +32,7 @@ def main(argv):
         synonym_count = int(argvTransform['synonymCount'])
         is_hierarchy = bool(argvTransform['hierarchy'])
         is_partWhole = bool(argvTransform['partWhole'])
+        lemma = argvTransform['lemma']
         rankdir = 'BT'
         body = ''
         body1 = ''
@@ -42,13 +43,13 @@ def main(argv):
 
         if is_hierarchy:
             body = build_body(synsets, level, filter_langs,
-                              synonym_count, branch_count, 'is a', hierarchy_build)
+                              synonym_count, branch_count, lemma, 'is a', hierarchy_build)
         else:
             rankdir = 'RL'
 
         if is_partWhole:
             body1 = build_body(synsets, level, filter_langs,
-                                synonym_count, branch_count, 'has a', partWhole_build)
+                                synonym_count, branch_count, lemma, 'has a', partWhole_build)
 
         combined_template = '''strict digraph g {
             compound=true;
@@ -65,7 +66,12 @@ def main(argv):
         font_name = getFontName(filter_langs)
         root = ''
         for synset in synsets:
-            root = f'{root}"{formatNodeDisplay(synset, filter_langs, synset.ili, synonym_count)}" [fontname={font_name} shape=box, style=bold];'
+            lemmas = synset.lemmas()
+            if lemma not in lemmas:
+                lemma_0 = lemmas[0]
+            else:
+                lemma_0 = lemma
+            root = f'{root}"{formatNodeDisplay(synset, filter_langs, synset.ili, synonym_count, lemma_0)}" [fontname={font_name} shape=box, style=bold];'
         writeOutput(combined_template, root, body, font_name,
                     dotFilePath, pngFilePath, data, body1=body1, rankdir=rankdir)
 
@@ -79,10 +85,15 @@ def main(argv):
         return data
 
 
-def build_body(synsets, level, filter_langs, synonym_count, branch_count, edge_label, func):
+def build_body(synsets, level, filter_langs, synonym_count, branch_count, lemma, edge_label, func):
     result = ''
     for synset in synsets:
-        result = f'{result} {func(synset, level, filter_langs, synset.ili, synonym_count, branch_count, True, edge_label)}{func(synset, level, filter_langs, synset.ili, synonym_count, branch_count, False, edge_label)}'
+        lemmas = synset.lemmas()
+        if lemma not in lemmas:
+            lemma_0 = lemmas[0]
+        else:
+            lemma_0 = lemma    
+        result = f'{result} {func(synset, level, filter_langs, synset.ili, synonym_count, branch_count, True, lemma_0, edge_label)}{func(synset, level, filter_langs, synset.ili, synonym_count, branch_count, False, lemma_0, edge_label)}'
 
     return result
 

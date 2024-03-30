@@ -2,6 +2,7 @@ from collections import defaultdict
 import json
 from rdflib import Graph, URIRef, Literal
 from rdflib.namespace import RDF, SKOS 
+import wn
 
 def read_json_file(filename):
     with open(filename, 'r') as file:
@@ -34,6 +35,15 @@ def print_tree_to_file(dict, output_file):
             f.write(new_key + ';"";""\n')
             for item in value:
                 f.write(f'"";{get_short_str(item[0])};{get_short_str(item[1])}\n')
+
+def find_word_in_synset_definition_example(woi):
+    for synset in wn.synsets(lang='en'):
+        definition = synset.definition()
+        if woi in definition:
+            print(f"{synset.id}({synset.ili.id}): {synset.lemmas()} - {definition}")
+        for example in synset.examples():
+            if example and woi in example:
+                print(f"{synset.id}({synset.ili.id}): {synset.lemmas()} - {example}")
     
 if __name__ == "__main__":
     # Example usage
@@ -42,6 +52,9 @@ if __name__ == "__main__":
     output_txt_file = 'output.txt'
     output_xlsx_file = 'output.xlsx'
     #ttl_to_csv(input_ttl_file, output_csv_file)
+    find_word_in_synset_definition_example('rocket')
+    raise Exception('I am done.')
+
     g = Graph()
     g.parse(input_ttl_file, format='turtle')
     

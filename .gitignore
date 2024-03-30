@@ -13,3 +13,4 @@ __pycache__
 *.jpg
 *.mp3
 *.mp4
+secret.py

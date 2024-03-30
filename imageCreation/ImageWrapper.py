@@ -2,6 +2,7 @@ import os
 import wn
 from passivlingo_dictionary.encoders.WordEncoder import WordEncoder
 from passivlingo_dictionary.wrappers.OwnSynsetWrapper import OwnSynsetWrapper
+from video_generation_consts import *
 
 
 def getArgvTransform(argv):
@@ -17,7 +18,8 @@ def getArgvTransform(argv):
         'synonymCount': None,
         'synsetId': None,        
         'hierarchy': False,
-        'partWhole': False
+        'partWhole': False,
+        'lemma': None
     }
 
     for item in argv:        
@@ -57,19 +59,22 @@ def writeOutput(template, root, body, font_name, dotFilePath, pngFilePath, resul
     print(WordEncoder().encode(result))
 
 
-def formatSynonymDisplay(synset, synonym_count):
+def formatSynonymDisplay(synset, synonym_count, lemma):
     lemmas = synset.lemmas()
+    if lemma in lemmas:
+        lemmas.remove(lemma)
+        lemmas.insert(0, lemma)
     result = ''
 
     if synset.id != '*INFERRED*':
         result = lemmas[0]
         for synonym in lemmas[1:synonym_count]:
             result += f',{synonym}'
+    
+    return f'{result} [{pos_description_short[synset.lang][synset.pos]}]'
 
-    return f'{result} [{synset.pos}.]'
 
-
-def formatNodeDisplay(synset, filter_langs, ili, synonym_count):
+def formatNodeDisplay(synset, filter_langs, ili, synonym_count, lemma):
 
     result = {}
     if filter_langs and ili:
@@ -78,15 +83,16 @@ def formatNodeDisplay(synset, filter_langs, ili, synonym_count):
             langs.remove('en')
             langs.insert(0, 'en')
         for lang in langs:
-            synsets_local = wn.synsets(ili=ili, lang=lang)
+            synsets_local = wn.synsets(ili=ili, lang=lang.strip())
             if len(synsets_local) > 0:
-                s = OwnSynsetWrapper(None, synsets_local[0])
-                result[lang] = formatSynonymDisplay(s, synonym_count)
+                s = OwnSynsetWrapper(synsets_local[0].lexicon().language, synsets_local[0])
+                result[lang] = formatSynonymDisplay(s, synonym_count, lemma)
     else:
-        result[synset.id] = formatSynonymDisplay(synset, synonym_count)
+        result[synset.id] = formatSynonymDisplay(synset, synonym_count, lemma)
 
     if len(result) == 0:
-        s = OwnSynsetWrapper(None, wn.synsets(ili=ili, lang='en')[0])
-        result['en'] = formatSynonymDisplay(s, synonym_count)
+        synset_to_wrap = wn.synsets(ili=ili, lang='en')[0]        
+        s = OwnSynsetWrapper(synset_to_wrap.lexicon().language, synset_to_wrap)
+        result['en'] = formatSynonymDisplay(s, synonym_count, lemma)
 
     return f"{'|'.join(result.values())}"
