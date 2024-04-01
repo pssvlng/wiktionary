@@ -1,7 +1,7 @@
 title_page = {}
 title_page['en'] = "{LEMMAS} is a {POS} in English, and it means {DEFINITION}."
-title_page['de'] = "{LEMMAS} ist ein {POS} in {LANG}, und es bedeutet {DEFINITION}."
-title_page['nl'] = "{LEMMAS} is een {POS} in {LANG}, en het betekent {DEFINITION}."
+title_page['de'] = "{LEMMAS} ist ein {POS} in Deutsch, und es bedeutet {DEFINITION}."
+title_page['nl'] = "{LEMMAS} is een {POS} in Nederlands, en het betekent {DEFINITION}."
 
 synonyms = {}
 synonyms['en'] = "Synonyms"

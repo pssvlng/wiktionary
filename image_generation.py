@@ -31,9 +31,20 @@ def make_overlay_image(image_path, output_path, transparency=204):
     result = Image.alpha_composite(original_image.convert('RGBA'), overlay)
     result.save(output_path)
 
-def make_title_image(image_path, synset, lemma, output_path):
-    def chunk(lst, chunk_size):    
-        return [lst[i:i+chunk_size] for i in range(0, len(lst), chunk_size)]
+def __chunk(phrase_dict, text, index: int = 0):
+        if len(text) <= 55:
+                phrase_dict[index + 1] = text
+                return phrase_dict
+        else:
+            word_list = text.split(' ')
+            while len(' '.join(word_list)) > 55:
+                word_list = word_list[:len(word_list) -1]
+            insert_text = text[:len(' '.join(word_list))]
+            index += 1
+            phrase_dict[index] = insert_text
+            return __chunk(phrase_dict, text[len(' '.join(word_list)):len(text)], index)
+
+def make_title_image(image_path, synset, lemma, output_path):    
     image = Image.open(image_path)        
     image_adjusted = Image.new("RGBA", image.size, (255, 255, 255, 0))
     draw = ImageDraw.Draw(image_adjusted)    
@@ -45,22 +56,23 @@ def make_title_image(image_path, synset, lemma, output_path):
     text1 = f"{lemma} [{pos_description_short[synset.lexicon().language][synset.pos]}]"              
     text_x = 20
     text_y = 10    
-    definition_parts = chunk(synset.definition().split(' '), 8)    
-    synonym_parts = []
+    definition_parts = {}    
+    definition_parts = __chunk(definition_parts, synset.definition())        
+    synonym_parts = {}
     if len(lemmas) > 1:
-        synonym_parts = chunk(f"{synonyms[synset.lexicon().language]}: {', '.join(lemmas)}".split(' '), 8)        
+        synonym_parts = __chunk(synonym_parts, f"{synonyms[synset.lexicon().language]}: {', '.join(lemmas)}")        
     rectangle_coords = [0, 0, image.width, 40 + 20*len(definition_parts) + 20*len(synonym_parts)]
     fill_color = (255, 255, 255, 196) 
     draw.rectangle(rectangle_coords, fill=fill_color)
 
     draw.text((text_x, text_y), text1, fill=text_color, font=font)        
     text_y += 10    
-    for part in synonym_parts:
+    for key in sorted(synonym_parts):
         text_y += 20
-        draw.text((text_x, text_y), ' '.join(part), fill=text_color, font=font_sub)            
-    for part in definition_parts:
+        draw.text((text_x, text_y), synonym_parts[key].strip(), fill=text_color, font=font_sub)                
+    for key in sorted(definition_parts):
         text_y += 20
-        draw.text((text_x, text_y), ' '.join(part), fill=text_color, font=font_sub)        
+        draw.text((text_x, text_y), definition_parts[key].strip(), fill=text_color, font=font_sub)            
 
     result = Image.alpha_composite(image.convert("RGBA"), image_adjusted)
     result.save(output_path)
@@ -103,7 +115,7 @@ def make_title_page_audio(synset, lang, lemma, output_file):
     definition = synset.definition()
     title_page_template = title_page[lang]
     synonym_text_template = synonym_text[lang]
-    audio_text = title_page_template.replace('{LEMMAS}', lemma).replace('{POS}', pos_description[lang][synset.pos]).replace('{LANG}', lang_description[lang]).replace('{DEFINITION}', definition)    
+    audio_text = title_page_template.replace('{LEMMAS}', lemma).replace('{POS}', pos_description[lang][synset.pos]).replace('{DEFINITION}', definition)    
     if len(lemmas) > 1:
         audio_text += synonym_text_template.replace('{LEMMA}', lemma).replace('{SYNONYMS}', ', '.join(lemmas))
     tts = gTTS(audio_text, lang=synset.lexicon().language)    
@@ -155,9 +167,7 @@ def make_diagram_audio(synset, lemma, output_file):
     tts = gTTS(result_text, lang=lang)    
     tts.save(output_file)
 
-def make_example_sentence_image(synset, input_file, output_file):
-    def chunk(lst, chunk_size):    
-        return [lst[i:i+chunk_size] for i in range(0, len(lst), chunk_size)]
+def make_example_sentence_image(synset, input_file, output_file):    
     image = Image.open(input_file)        
     image_adjusted = Image.new("RGBA", image.size, (255, 255, 255, 0))
     draw = ImageDraw.Draw(image_adjusted)    
@@ -170,12 +180,15 @@ def make_example_sentence_image(synset, input_file, output_file):
     
     text1 = f"{examples[0]}"              
     text_x = 20
-    text_y = 10    
-    example_parts = chunk(examples[0].split(' '), 8)        
+    text_y = 10  
+    example_parts = {}      
+    example_parts = __chunk(example_parts, text1)        
     rectangle_coords = [0, 0, image.width, 40 + 20*len(example_parts)]
     fill_color = (255, 255, 255, 196) 
-    draw.rectangle(rectangle_coords, fill=fill_color)
-    draw.text((text_x, text_y), text1, fill=text_color, font=font)                
+    draw.rectangle(rectangle_coords, fill=fill_color)    
+    for key in sorted(example_parts.items()):        
+        draw.text((text_x, text_y), example_parts[key].strip(), fill=text_color, font=font)        
+        text_y += 20
     
     result = Image.alpha_composite(image.convert("RGBA"), image_adjusted)
     result.save(output_file)
@@ -301,9 +314,9 @@ def make_images(synset, lang, filterLangs):
         
 #make_title_image("i23198/i23198_0.jpg", 'produce or yield flowers', ['flower', 'blossom', 'bloom'], "i23198/i23198_title.png")
 #make_image('construction', 'en', 'en', 'n')
-make_images_from_ili('i67348', 'nl', 'nl')
-make_images_from_ili('i67348', 'en', 'en')
-make_images_from_ili('i67348', 'de', 'de')
+make_images_from_ili('i66777', 'nl', 'nl')
+make_images_from_ili('i66777', 'en', 'en')
+make_images_from_ili('i66777', 'de', 'de')
 #make_image('Occident', 'en', 'en', 'n')
 #make_image('huisvesten', 'nl', 'nl', 'v')
 #make_image('Abendland', 'de', 'de', 'n')
