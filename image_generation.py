@@ -11,8 +11,12 @@ from hugging_face import generate_text_from_api
 from imageCreation.CombinedImageWrapper import main
 
 from video_generation_consts import *
-from moviepy.editor import AudioClip, VideoFileClip, VideoClip, ImageClip, AudioFileClip, concatenate_videoclips
+from moviepy.editor import CompositeVideoClip, VideoFileClip, ImageClip, TextClip, AudioFileClip, concatenate_videoclips, clips_array
+import moviepy.editor as mp
 from moviepy.video.fx import resize
+import ffmpeg
+import pysrt
+import tempfile
 
 def merge_images(background_image, foreground_image, result_image, image_size):
     background = Image.open(background_image)
@@ -31,18 +35,20 @@ def make_overlay_image(image_path, output_path, transparency=204):
     result = Image.alpha_composite(original_image.convert('RGBA'), overlay)
     result.save(output_path)
 
-def __chunk(phrase_dict, text, index: int = 0):
-        if len(text) <= 55:
+def __chunk(phrase_dict, text, char_length:int = 55, index: int = 0):
+        if len(text) <= char_length:
                 phrase_dict[index + 1] = text
                 return phrase_dict
         else:
             word_list = text.split(' ')
-            while len(' '.join(word_list)) > 55:
+            while len(' '.join(word_list)) > char_length:
+                if len(word_list) == 1 and len(' '.join(word_list)) > char_length:
+                    break 
                 word_list = word_list[:len(word_list) -1]
             insert_text = text[:len(' '.join(word_list))]
             index += 1
             phrase_dict[index] = insert_text
-            return __chunk(phrase_dict, text[len(' '.join(word_list)):len(text)], index)
+            return __chunk(phrase_dict, text[len(' '.join(word_list)):len(text)], char_length, index)
 
 def make_title_image(image_path, synset, lemma, output_path):    
     image = Image.open(image_path)        
@@ -120,14 +126,17 @@ def make_title_page_audio(synset, lang, lemma, output_file):
         audio_text += synonym_text_template.replace('{LEMMA}', lemma).replace('{SYNONYMS}', ', '.join(lemmas))
     tts = gTTS(audio_text, lang=synset.lexicon().language)    
     tts.save(output_file)
+    return audio_text
 
 def make_example_page_audio(synset, lang, output_file):
     examples = synset.examples()
+    example_text = ""
     if len(examples) > 0:            
         example_text_template = example[lang]
         example_text = example_text_template.replace('{SENTENCE}', examples[0])        
         tts = gTTS(example_text, lang=synset.lexicon().language)    
         tts.save(output_file)
+    return example_text    
 
 def make_diagram_audio(synset, lemma, output_file):
     lang = synset.lexicon().language    
@@ -166,6 +175,7 @@ def make_diagram_audio(synset, lemma, output_file):
     result_text = generate_text_from_api(text_prompt, lang)    
     tts = gTTS(result_text, lang=lang)    
     tts.save(output_file)
+    return result_text
 
 def make_example_sentence_image(synset, input_file, output_file):    
     image = Image.open(input_file)        
@@ -186,14 +196,14 @@ def make_example_sentence_image(synset, input_file, output_file):
     rectangle_coords = [0, 0, image.width, 40 + 20*len(example_parts)]
     fill_color = (255, 255, 255, 196) 
     draw.rectangle(rectangle_coords, fill=fill_color)    
-    for key in sorted(example_parts.items()):        
+    for key in sorted(example_parts):        
         draw.text((text_x, text_y), example_parts[key].strip(), fill=text_color, font=font)        
         text_y += 20
     
     result = Image.alpha_composite(image.convert("RGBA"), image_adjusted)
     result.save(output_file)
 
-def make_video_from_image(image_input_file, video_output_file, audio_input_file=None, duration=3.00):        
+def make_video_from_image(image_input_file, video_output_file, audio_input_file=None, duration=3.00):            
     image = ImageClip(image_input_file)    
     audio = AudioFileClip(audio_input_file) if audio_input_file and os.path.exists(audio_input_file) else None
     if audio:
@@ -201,6 +211,7 @@ def make_video_from_image(image_input_file, video_output_file, audio_input_file=
         image = image.set_duration(audio.duration)
     else:
         image = image.set_duration(duration)            
+    
     image.write_videofile(video_output_file, codec='libx264', fps=24)        
 
 def make_title_page_video(image_input_file, audio_input_file, video_output_file):            
@@ -210,6 +221,65 @@ def make_title_page_video(image_input_file, audio_input_file, video_output_file)
     video_clip = image_clip.set_duration(video_duration)
     video_clip = video_clip.set_audio(audio_clip)    
     video_clip.write_videofile(video_output_file, codec="libx264", fps=24)
+
+def make_subtitle_video_clip(subtitle_text, video_input_file, video_output_file):    
+    video = VideoFileClip(video_input_file)        
+    subtitle_dict = __chunk({}, subtitle_text)
+    subtitle_keys = sorted(subtitle_dict)
+
+    subtitle_clips = []
+    for i, key in enumerate(subtitle_keys):
+        start_time = i * video.duration / len(subtitle_keys)
+        end_time = (i + 1) * video.duration / len(subtitle_keys)        
+        subtitle_clip = TextClip(subtitle_dict[key], fontsize=20).set_pos(('center', 'bottom')).set_start(start_time).set_end(end_time)        
+        subtitle_clips.append(subtitle_clip)
+
+    final_video = CompositeVideoClip([video] + subtitle_clips)
+    final_video.write_videofile(video_output_file, codec='libx264')
+    video.close()
+
+def make_subtitle_video_clip_ffmpeg(subtitle_text, video_input_file, video_output_file):    
+    subtitle_dict = __chunk({}, subtitle_text, char_length=70)
+    subtitle_keys = sorted(subtitle_dict)
+
+    probe = ffmpeg.probe(video_input_file)
+    video_info = next(s for s in probe['streams'] if s['codec_type'] == 'video')
+    video_duration = float(video_info['duration'])    
+    
+    segment_duration = video_duration / len(subtitle_keys)    
+    subtitles = pysrt.SubRipFile()
+
+    for i, key in enumerate(subtitle_keys):
+        if i==0:
+            start_time = 0            
+        else:
+            start_time =  (i * segment_duration) + 1
+
+        end_time = ((i + 1) * segment_duration) + 1
+        
+        subtitle = pysrt.SubRipItem(index=i+1, start=pysrt.SubRipTime(seconds=start_time), end=pysrt.SubRipTime(seconds=end_time), text=subtitle_dict[key])
+        subtitles.append(subtitle)
+
+    srt_file = f"{tempfile.gettempdir()}/subtitles.srt"
+    subtitles.save(srt_file)
+    ffmpeg.input(video_input_file).output(video_output_file, vf=f'subtitles={srt_file}').run()    
+
+def make_files_to_publish(ili, lang, calendar_week, year):
+    synsets = wn.synsets(ili=ili, lang=lang)
+    synset = synsets[0]
+    lemmas = synset.lemmas()
+    
+    source_base_path = f"synset_media/{synset.ili.id}/"        
+    target_base_path = f"synset_media_published/{synset.ili.id}/"        
+    lang_path = f"{target_base_path}{lang}/"
+    if not os.path.exists(f"{target_base_path}"):    
+            os.makedirs(f"{target_base_path}")
+    if not os.path.exists(f"{lang_path}"):                    
+            os.makedirs(f"{lang_path}")
+
+    for lemma in lemmas:
+        shutil.copyfile(f"{source_base_path}{lang}/{synset.ili.id}_{lemma}.mp4", f"{target_base_path}{lang}/{calendar_week}.{year} {lemma} [{lang_description[lang]}] [{synset.ili.id}].mp4") 
+        shutil.copyfile(f"{source_base_path}{lang}/{synset.ili.id}_{lemma}_sub.mp4", f"{target_base_path}{lang}/{calendar_week}.{year} {lemma} [{lang_description[lang]}] [subtitles] [{synset.ili.id}].mp4") 
 
 def make_images_from_word_pos(woi, lang, filterLangs, pos):
     for synset in wn.synsets(woi, lang=lang, pos=pos):
@@ -281,49 +351,59 @@ def make_images(synset, lang, filterLangs):
         
         image_size = make_title_image(image_files[0], synset, lemma, f"{lang_path}{synset.ili.id}_{formatted_lemma}_title.png")
         title_page_audio_file = f"{lang_path}{synset.ili.id}_{formatted_lemma}_title.mp3"
-        make_title_page_audio(synset, lang, lemma, title_page_audio_file)
+        title_page_audio_text = make_title_page_audio(synset, lang, lemma, title_page_audio_file)
         title_page_video_file = f"{lang_path}{synset.ili.id}_{formatted_lemma}_title.mp4"
-        make_title_page_video(f"{lang_path}{synset.ili.id}_{formatted_lemma}_title.png", title_page_audio_file, title_page_video_file)
+        title_page_video_file_sub =f"{lang_path}{synset.ili.id}_{formatted_lemma}_title_sub.mp4"
+        make_title_page_video(f"{lang_path}{synset.ili.id}_{formatted_lemma}_title.png", title_page_audio_file, title_page_video_file)        
         if not check_files_exist(f"{lang_path}{synset.ili.id}_composite.png"):
             merge_images(tiled_transparent_output_file, f"{lang_path}{synset.ili.id}_{formatted_lemma}.png", f"{lang_path}{synset.ili.id}_composite.png", image_size)                    
 
         make_example_sentence_image(synset, image_files[1], f"{lang_path}{synset.ili.id}_{formatted_lemma}_example.png")        
         example_sentence_audio_file = f"{lang_path}{synset.ili.id}_{formatted_lemma}_example.mp3"
-        make_example_page_audio(synset, lang, example_sentence_audio_file)        
+        example_audio_text = make_example_page_audio(synset, lang, example_sentence_audio_file)        
         example_sentence_video_file = f"{lang_path}{synset.ili.id}_{formatted_lemma}_example.mp4"
-        make_video_from_image(f"{lang_path}{synset.ili.id}_{formatted_lemma}_example.png", example_sentence_video_file, example_sentence_audio_file)
+        example_sentence_video_file_sub = f"{lang_path}{synset.ili.id}_{formatted_lemma}_example_sub.mp4"
+        make_video_from_image(f"{lang_path}{synset.ili.id}_{formatted_lemma}_example.png", example_sentence_video_file, example_sentence_audio_file)        
         
         make_video_from_image(image_files[2], image_files[2].replace('.jpg', '.mp4'))
         make_video_from_image(image_files[3], image_files[3].replace('.jpg', '.mp4'))
-        make_diagram_audio(synset, lemma, f"{lang_path}{synset.ili.id}_{formatted_lemma}_composite.mp3")
-        make_video_from_image(f"{lang_path}{synset.ili.id}_composite.png", f"{lang_path}{synset.ili.id}_{formatted_lemma}_composite.mp4", f"{lang_path}{synset.ili.id}_{formatted_lemma}_composite.mp3", duration=10.00)
-        
+        diagram_audio_text = make_diagram_audio(synset, lemma, f"{lang_path}{synset.ili.id}_{formatted_lemma}_composite.mp3")
+        make_video_from_image(f"{lang_path}{synset.ili.id}_composite.png", f"{lang_path}{synset.ili.id}_{formatted_lemma}_composite.mp4", f"{lang_path}{synset.ili.id}_{formatted_lemma}_composite.mp3")        
+
         all_clips = [
                 VideoFileClip(title_page_video_file),
                 VideoFileClip(example_sentence_video_file),
                 VideoFileClip(image_files[2].replace('.jpg', '.mp4')),
                 VideoFileClip(image_files[3].replace('.jpg', '.mp4')),
                 VideoFileClip(f"{lang_path}{synset.ili.id}_{formatted_lemma}_composite.mp4")
-            ]
-        
+            ]                        
         final_vid = concatenate_videoclips(
             all_clips,
             method="compose"
         )                
         final_vid.write_videofile(f"{lang_path}{synset.ili.id}_{formatted_lemma}.mp4", codec="libx264", fps=24)
-        
-#make_title_image("i23198/i23198_0.jpg", 'produce or yield flowers', ['flower', 'blossom', 'bloom'], "i23198/i23198_title.png")
-#make_image('construction', 'en', 'en', 'n')
-make_images_from_ili('i66777', 'nl', 'nl')
-make_images_from_ili('i66777', 'en', 'en')
-make_images_from_ili('i66777', 'de', 'de')
-#make_image('Occident', 'en', 'en', 'n')
-#make_image('huisvesten', 'nl', 'nl', 'v')
-#make_image('Abendland', 'de', 'de', 'n')
-#make_image('Dachshund', 'en', 'en', 'n')
 
-#make_image('traffic', 'en', 'en', 'n')
-#proc1()
-#overlay_with_transparent_white("input_images/wisski_crud.png", "input_images/wisski_crud_2.png", transparency=196)
-#make_white_transparent("input_images/Sauerstoff_1.png", "input_images/output_image.png")
+        make_subtitle_video_clip_ffmpeg(title_page_audio_text, title_page_video_file, title_page_video_file_sub)
+        make_subtitle_video_clip_ffmpeg(example_audio_text, example_sentence_video_file, example_sentence_video_file_sub)        
+        make_video_from_image(f"{lang_path}{synset.ili.id}_composite.png", f"{lang_path}{synset.ili.id}_{formatted_lemma}_composite_0.mp4", duration=3.00)        
+        make_subtitle_video_clip_ffmpeg(diagram_audio_text, f"{lang_path}{synset.ili.id}_{formatted_lemma}_composite.mp4", f"{lang_path}{synset.ili.id}_{formatted_lemma}_composite_sub.mp4")
+        all_clips_subs = [
+                VideoFileClip(title_page_video_file_sub),
+                VideoFileClip(example_sentence_video_file_sub),
+                VideoFileClip(image_files[2].replace('.jpg', '.mp4')),
+                VideoFileClip(image_files[3].replace('.jpg', '.mp4')),
+                VideoFileClip(f"{lang_path}{synset.ili.id}_{formatted_lemma}_composite_0.mp4"),
+                VideoFileClip(f"{lang_path}{synset.ili.id}_{formatted_lemma}_composite_sub.mp4")
+            ]        
+        final_vid_sub = concatenate_videoclips(
+            all_clips_subs,
+            method="compose"
+        )                
+        final_vid_sub.write_videofile(f"{lang_path}{synset.ili.id}_{formatted_lemma}_sub.mp4", codec="libx264", fps=24)
+        
+
+#make_images_from_ili('i40195', 'en', 'en')
+#make_images_from_ili('i40195', 'de', 'de')
+make_files_to_publish('i40195', 'en', 15, 2024)
+make_files_to_publish('i40195', 'de', 15, 2024)
 
