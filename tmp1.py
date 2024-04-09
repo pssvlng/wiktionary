@@ -3,6 +3,7 @@ import json
 from rdflib import Graph, URIRef, Literal
 from rdflib.namespace import RDF, SKOS 
 import wn
+from openai import OpenAI
 
 def read_json_file(filename):
     with open(filename, 'r') as file:
@@ -44,6 +45,19 @@ def find_word_in_synset_definition_example(woi):
         for example in synset.examples():
             if example and woi in example:
                 print(f"{synset.id}({synset.ili.id}): {synset.lemmas()} - {example}")
+
+def generate_image_open_ai():
+    client = OpenAI()
+    response = client.images.generate(
+    model="dall-e-2",
+    prompt="a white siamese cat",
+    size="1024x1024",
+    quality="standard",
+    n=1,
+    )
+
+    image_url = response.data[0].url
+    print(image_url)
     
 if __name__ == "__main__":
     # Example usage
@@ -52,11 +66,12 @@ if __name__ == "__main__":
     output_txt_file = 'output.txt'
     output_xlsx_file = 'output.xlsx'
     #ttl_to_csv(input_ttl_file, output_csv_file)
-    find_word_in_synset_definition_example('rocket')
-    raise Exception('I am done.')
-
-    g = Graph()
-    g.parse(input_ttl_file, format='turtle')
+    #find_word_in_synset_definition_example('rocket')
     
-    tree = build_tree(g)
-    print_tree_to_file(tree, output_csv_file)
+    #g = Graph()
+    #g.parse(input_ttl_file, format='turtle')
+    
+    #tree = build_tree(g)
+    #print_tree_to_file(tree, output_csv_file)
+
+    generate_image_open_ai()

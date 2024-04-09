@@ -121,12 +121,13 @@ def make_title_page_audio(synset, lang, lemma, output_file):
     definition = synset.definition()
     title_page_template = title_page[lang]
     synonym_text_template = synonym_text[lang]
-    audio_text = title_page_template.replace('{LEMMAS}', lemma).replace('{POS}', pos_description[lang][synset.pos]).replace('{DEFINITION}', definition)    
+    audio_text = [title_page_template.replace('{LEMMAS}', lemma).replace('{POS}', pos_description[lang][synset.pos]).replace('{DEFINITION}', definition)]
     if len(lemmas) > 1:
-        audio_text += synonym_text_template.replace('{LEMMA}', lemma).replace('{SYNONYMS}', ', '.join(lemmas))
-    tts = gTTS(audio_text, lang=synset.lexicon().language)    
+        audio_text.append(synonym_text_template.replace('{LEMMA}', lemma).replace('{SYNONYMS}', ', '.join(lemmas)))
+    
+    tts = gTTS(' '.join(audio_text), lang=synset.lexicon().language)    
     tts.save(output_file)
-    return audio_text
+    return ' '.join(audio_text)
 
 def make_example_page_audio(synset, lang, output_file):
     examples = synset.examples()
@@ -253,9 +254,9 @@ def make_subtitle_video_clip_ffmpeg(subtitle_text, video_input_file, video_outpu
         if i==0:
             start_time = 0            
         else:
-            start_time =  (i * segment_duration) + 1
+            start_time =  (i * segment_duration) + 1.5
 
-        end_time = ((i + 1) * segment_duration) + 1
+        end_time = ((i + 1) * segment_duration) + 1.5
         
         subtitle = pysrt.SubRipItem(index=i+1, start=pysrt.SubRipTime(seconds=start_time), end=pysrt.SubRipTime(seconds=end_time), text=subtitle_dict[key])
         subtitles.append(subtitle)
@@ -264,10 +265,13 @@ def make_subtitle_video_clip_ffmpeg(subtitle_text, video_input_file, video_outpu
     subtitles.save(srt_file)
     ffmpeg.input(video_input_file).output(video_output_file, vf=f'subtitles={srt_file}').run()    
 
-def make_files_to_publish(ili, lang, calendar_week, year):
+def make_files_to_publish(ili, lang, calendar_week, year, lemma=None):
     synsets = wn.synsets(ili=ili, lang=lang)
     synset = synsets[0]
-    lemmas = synset.lemmas()
+    if lemma:
+        lemmas = [lemma]
+    else:            
+        lemmas = synset.lemmas()
     
     source_base_path = f"synset_media/{synset.ili.id}/"        
     target_base_path = f"synset_media_published/{synset.ili.id}/"        
@@ -401,9 +405,10 @@ def make_images(synset, lang, filterLangs):
         )                
         final_vid_sub.write_videofile(f"{lang_path}{synset.ili.id}_{formatted_lemma}_sub.mp4", codec="libx264", fps=24)
         
-
+#make_images_from_word_pos("diachrony", 'en', 'en', 'n')
+#make_images_from_ili('i67986', 'en', 'en')
 #make_images_from_ili('i40195', 'en', 'en')
-#make_images_from_ili('i40195', 'de', 'de')
-make_files_to_publish('i40195', 'en', 15, 2024)
-make_files_to_publish('i40195', 'de', 15, 2024)
+#make_images_from_ili('i68973', 'de', 'de')
+make_files_to_publish('i68973', 'en', 17, 2024, 'diachrony')
+make_files_to_publish('i68973', 'de', 17, 2024, 'Diachronie')
 
