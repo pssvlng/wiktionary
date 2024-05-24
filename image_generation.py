@@ -406,9 +406,9 @@ def make_images(synset, lang, filterLangs):
         final_vid_sub.write_videofile(f"{lang_path}{synset.ili.id}_{formatted_lemma}_sub.mp4", codec="libx264", fps=24)
         
 #make_images_from_word_pos("diachrony", 'en', 'en', 'n')
-#make_images_from_ili('i67986', 'en', 'en')
+make_images_from_ili('i115732', 'en', 'en')
 #make_images_from_ili('i40195', 'en', 'en')
 #make_images_from_ili('i68973', 'de', 'de')
-make_files_to_publish('i68973', 'en', 17, 2024, 'diachrony')
-make_files_to_publish('i68973', 'de', 17, 2024, 'Diachronie')
+#make_files_to_publish('i68973', 'en', 17, 2024, 'diachrony')
+#make_files_to_publish('i68973', 'de', 17, 2024, 'Diachronie')
 

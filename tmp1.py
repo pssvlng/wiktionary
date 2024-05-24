@@ -58,6 +58,14 @@ def generate_image_open_ai():
 
     image_url = response.data[0].url
     print(image_url)
+
+def get_recursive_hyponym_cnt(synset):
+    hyponyms = synset.hyponyms()
+    count = 1        
+    for hyponym in hyponyms:
+        count += get_recursive_hyponym_cnt(hyponym)
+    
+    return count
     
 if __name__ == "__main__":
     # Example usage
@@ -74,4 +82,7 @@ if __name__ == "__main__":
     #tree = build_tree(g)
     #print_tree_to_file(tree, output_csv_file)
 
-    generate_image_open_ai()
+    #generate_image_open_ai()
+
+    synset = wn.synset('ewn-11445694-n')
+    print(get_recursive_hyponym_cnt(synset))

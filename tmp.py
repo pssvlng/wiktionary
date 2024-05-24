@@ -9,6 +9,8 @@ from polyglot.text import Text
 from rdflib import Graph
 
 from shared import spacy_to_olia
+import requests
+import json
 
 def batched_parse(graph, file_path, batch_size=1000):
     with open(file_path, 'rb') as file:
@@ -80,9 +82,35 @@ def get_triples(doc):
     return result        
 
     
+def evaluate_description(description):
+    nlp = spacy.load("de_core_news_sm")    
+    words = nlp(description)
+    if len(words) < 5:
+        return (2, "Beschreibung zu kurz")
+    
+    nouns_and_named_entities = [token.text for token in words if token.pos_ == "NOUN" or token.ent_type_ != ""]
+    if len(nouns_and_named_entities) == 0:
+        return (2, "mindestens ein Substantiv im Beschreibungstext erforderlich")
+    
+    verbs = [token.text for token in words if token.pos_ in ["VERB", "AUX"]]
+    if len(verbs) == 0:
+        return (1, "Der Text enthält keine Verben")
+
+    return (0, "")
 
 
 
+def evaluate_description_http(description, lang):
+
+    url = 'http://127.0.0.1:5000/api/validate/description'
+    params = {
+        'text': description,
+        'lang': lang
+    }
+    headers = {'Content-Type': 'application/json'}
+    json_data = json.dumps(params)
+    response = requests.post(url, data=json_data, headers=headers)
+    print(response)
 
 #graph = Graph()
 #ttl_file_path = f'{os.path.expanduser("~")}/MyData/dbnary/de_dbnary_morphology.ttl'
@@ -93,7 +121,7 @@ def get_triples(doc):
 
 #nltk.download()
 #sentences = tiger.sents()
-nlp = spacy.load("de_core_news_sm")
+#nlp = spacy.load("de_core_news_sm")
 #m = MorphAnalysis(nlp.vocab)
 #print(m.get('VerbForm'))
 
@@ -104,13 +132,23 @@ nlp = spacy.load("de_core_news_sm")
 #doc = nlp(sentence_str2)
 #func2(doc)
 
-txt =  """
-Ich wohne in Berlin, and ich arbeite für Apple. Ich liebe Kapstadt, und ich besuche Donald Trump in Berlin.
-"""
-doc =  Text(txt, hint_language_code='de')
-
-for entity in doc.entities:
-    print(' '.join(entity))
+# txt =  """
+# Ich wohne in Berlin, and ich arbeite für Apple. Ich liebe Kapstadt, und ich besuche Donald Trump in Berlin.
+# """
+# doc =  Text(txt, hint_language_code='de')
+# 
+# for entity in doc.entities:
+    # print(' '.join(entity))
 
 #for ent in doc.ents:
 #    print(ent.text, ent.label_)
+
+description_good = "Das hier ist ein gültiges Text."
+description_bad1 = "zu kurz"
+description_bad2 = "schlafen, schlafen, schlafen, schlafen, schlafen, schlafen, schlafen"
+description_warning = "München und Berlin und Paris"
+
+#result = evaluate_description(description_warning)
+#print(result)
+
+result = evaluate_description_http(description_bad1, 'de')
