@@ -14,3 +14,4 @@ __pycache__
 *.mp3
 *.mp4
 secret.py
+*.rtf

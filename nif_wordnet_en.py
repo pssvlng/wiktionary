@@ -7,7 +7,7 @@ from rdflib.namespace import RDF, XSD, SDO
 import requests
 from ContextWord import ContextWord
 from WeightedWord import WeightedWord
-from queries_en import GET_WIKIDATA_ALL_MISMATCH_ID, GET_WIKIDATA_CLASSES, GET_WIKIDATA_MISMATCH, GET_WIKIDATA_URI, LOD_CLOSE_MATCHES, SYNSET_NOUNS_STAGING_CREATE, SYNSET_NOUNS_STAGING_INSERT, SYNSET_NOUNS_STAGING_SELECT, SYNSET_NOUNS_STAGING_UPDATE, WIKIDATA_CLASSES_INSERT, WORDNET_RDF_2, WORDNET_RDF, WORDNET_RDF_3, WORDNET_RDF_4, WORDNET_RDF_CNT
+from queries_en import GET_WIKIDATA_ALL_MISMATCH_ID, GET_WIKIDATA_CLASSES, GET_WIKIDATA_MISMATCH, GET_WIKIDATA_URI, LOD_CLOSE_MATCHES, SYNSET_NOUNS_STAGING_CREATE, SYNSET_NOUNS_STAGING_INSERT, SYNSET_NOUNS_STAGING_KEA_CREATE, SYNSET_NOUNS_STAGING_KEA_INSERT, SYNSET_NOUNS_STAGING_SELECT, SYNSET_NOUNS_STAGING_UPDATE, WIKIDATA_CLASSES_INSERT, WORDNET_RDF_2, WORDNET_RDF, WORDNET_RDF_3, WORDNET_RDF_4, WORDNET_RDF_CNT
 from shared import *
 from SimilarityClassifier import SimilarityClassifier
 from passivlingo_dictionary.Dictionary import Dictionary
@@ -329,7 +329,85 @@ def get_same_as(limit: int, offset: int, query:str):
     sparql.setQuery(query)
     sparql.setReturnFormat(JSON)
     return sparql.query().convert()    
-    
+
+def add_yovisto_kea_annotations_synsets(lang):    
+    def get_dbpedia_entities(text_to_annotate):
+        headers = {
+                "Accept": "application/json; charset=UTF-8",
+            }        
+        params = {}
+        try:                
+            response = requests.post(f'https://wlo.yovisto.com/services/extract/', data=text_to_annotate.encode("utf-8"), params=params, headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()        
+                return data.get("entities", [])
+            else:
+                print(f"Error: {response.status_code} - {text_to_annotate}")
+        except Exception as e:
+            print(f"Unknown error for text: {text_to_annotate}")        
+            print(e)        
+            return []       
+                                                     
+    db_name = f"synset_noun_{lang}.db"
+    #conn = sqlite3.connect(db_name)    
+    #conn.execute(SYNSET_NOUNS_STAGING_KEA_CREATE)    
+    #conn.close()
+
+    cntr = 20000    
+    synsets = wn.synsets(pos='n', lang='en')
+    data_to_insert = []
+    for synset in synsets[20000:40000]:
+        synsets_de = wn.synsets(ili=synset.ili.id, lang='de')
+        if len(synsets_de) > 0:
+            definition = synsets_de[0].definition()
+            examples = [definition]
+            for example in synsets_de[0].examples():
+                if example:
+                    examples.append(example)
+
+            for lemma in synsets_de[0].lemmas():
+                end_idx = len(lemma)
+                text_to_annotate = f'{lemma}: {". ".join(examples)}'            
+                max_length = 400    
+                if len(text_to_annotate) > max_length:
+                    text_to_annotate = text_to_annotate[:max_length]
+                try:                                                
+                    annotations = get_dbpedia_entities(text_to_annotate)
+                    if annotations:
+                        for annotation in annotations:
+                            start_index = int(annotation.get("start", 0))
+                            end_index = int(annotation.get("end", 0))                    
+                            if start_index != 0:
+                                continue       
+                            if end_index != end_idx:                 
+                                continue
+                            dbpedia_resource = URIRef(f'http://de.dbpedia.org/resource/{URIRef(annotation.get("entity", ""))}')
+                            confidence= annotation.get("score", "0")
+                            data_to_insert.append((synset.id, synset.ili.id, lemma, text_to_annotate, dbpedia_resource, confidence, "0"))                            
+                                                                                                        
+                except Exception as e:
+                    print(f"Unknown error for text: {text_to_annotate}")        
+                    print(e)        
+
+        cntr += 1
+        if (cntr % 1000 == 0):
+            print(f'Records processed: {cntr} of {len(synsets)}')
+            conn = sqlite3.connect(db_name)
+            cursor = conn.cursor()
+            cursor.executemany(SYNSET_NOUNS_STAGING_KEA_INSERT, data_to_insert)
+            conn.commit()
+            conn.close()
+            data_to_insert.clear()
+            #data_to_insert = []
+
+    if len(data_to_insert) > 0: 
+        conn = sqlite3.connect(db_name)
+        cursor = conn.cursor()
+        cursor.executemany(SYNSET_NOUNS_STAGING_KEA_INSERT, data_to_insert)
+        conn.commit()
+        conn.close()    
+
 def add_dbpedia_annotations_synsets(lang):                                                        
     db_name = f"synset_noun_{lang}.db"
     conn = sqlite3.connect(db_name)    
@@ -384,6 +462,12 @@ def add_dbpedia_annotations_synsets(lang):
             conn.close()
             data_to_insert = []
 
+        conn = sqlite3.connect(db_name)
+        cursor = conn.cursor()
+        cursor.executemany(SYNSET_NOUNS_STAGING_INSERT, data_to_insert)
+        conn.commit()
+        conn.close()    
+
 def add_dbpedia_annotations_synsets(g, source_prefix, lang):
     db_name = f"synset_noun_{lang}.db"
     conn = sqlite3.connect(db_name)    
@@ -404,11 +488,11 @@ def add_dbpedia_annotations_synsets(g, source_prefix, lang):
     conn.close()
     return g
 
-def add_wikidata_links_synsets(lang):
+def add_wikidata_links_synsets(lang, query):
     db_name = f"synset_noun_{lang}.db"
     conn = sqlite3.connect(db_name)    
     cursor = conn.cursor()
-    cursor.execute("select * from SYNSET_NOUNS_STAGING where wikidata IS NULL")
+    cursor.execute(query)
     rows = cursor.fetchall()    
     cntr = 0
     sparql = SPARQLWrapper("https://dbpedia.org/sparql")
@@ -564,7 +648,8 @@ if len(sys.argv) == 4:
 
     if category == "dbpedia_synset":        
         lang = 'en'
-        add_dbpedia_annotations_synsets(lang)
+        #add_dbpedia_annotations_synsets(lang)
+        add_yovisto_kea_annotations_synsets(lang)
 
     if category == "dbpedia_synset_same_as":
         graph = Graph()
@@ -578,4 +663,5 @@ if len(sys.argv) == 4:
         lang = 'en'  
         analyse_wikidata_classes(lang, "wikidata_classes_distinct.csv")
         #compare_wikidata_classes(lang)
-        #add_wikidata_links_synsets(lang)
+        #add_wikidata_links_synsets(lang, "select * from SYNSET_NOUNS_STAGING where wikidata IS NULL")
+        #add_wikidata_links_synsets(lang, "select * from SYNSET_NOUNS_KEA_STAGING where wikidata IS NULL")
