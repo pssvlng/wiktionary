@@ -1,0 +1,218 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2821
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww37900\viewh17960\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 Spotlight and KEA comparison query with McCrae Hapax Algorithm\
+====================================================\
+\
+\
+SPOTLIGHT\
+==========\
+SELECT distinct t1.id, t1.ILI, t1.DBPEDIA, t1.WIKIDATA, t3.item, t2.max_score\
+FROM SYNSET_NOUNS_STAGING t1\
+INNER JOIN (\
+    SELECT id, MAX(CAST(CONFIDENCE AS DECIMAL(10,6))) AS max_score\
+    FROM SYNSET_NOUNS_STAGING\
+    GROUP BY id\
+) t2 ON t1.id = t2.id AND CAST(t1.CONFIDENCE AS DECIMAL(10,6)) = t2.max_score\
+inner join wikidata_ili as t3 on t1.ili = t3.id\
+where t1.WIKIDATA = t3.item \
+and (t1.WIKIDATA != "http://www.wikidata.org/entity/Q10299641" and t1.wikidata IS NOT NULL)\
+order by t1.ILI\
+ \
+\'97> 6412\
+\
+\
+\
+SELECT distinct t1.id, t1.ILI, t1.DBPEDIA, t1.WIKIDATA, t3.item, t2.max_score\
+FROM SYNSET_NOUNS_STAGING t1\
+INNER JOIN (\
+    SELECT id, MAX(CAST(CONFIDENCE AS DECIMAL(10,6))) AS max_score\
+    FROM SYNSET_NOUNS_STAGING\
+    GROUP BY id\
+) t2 ON t1.id = t2.id AND CAST(t1.CONFIDENCE AS DECIMAL(10,6)) = t2.max_score\
+inner join wikidata_ili as t3 on t1.ili = t3.id\
+where t1.WIKIDATA <> t3.item \
+and (t1.WIKIDATA != "http://www.wikidata.org/entity/Q10299641" and t1.wikidata IS NOT NULL)\
+order by t1.ILI\
+\
+\'97> 1721\
+\
+\
+SELECT distinct(ILI)\
+FROM SYNSET_NOUNS_STAGING  t1\
+INNER JOIN (\
+    SELECT id, MAX(CAST(CONFIDENCE AS DECIMAL(10,6))) AS max_score\
+    FROM SYNSET_NOUNS_STAGING\
+    GROUP BY id\
+) t2 ON t1.id = t2.id AND CAST(t1.CONFIDENCE AS DECIMAL(10,6)) = t2.max_score\
+inner join wikidata_ili as t3 on t1.ili = t3.id\
+where t1.WIKIDATA = "http://www.wikidata.org/entity/Q10299641" or t1.wikidata IS NULL\
+\'97> 40\
+\
+\
+KEA\
+====\
+\
+\
+SELECT distinct t1.id, t1.ILI, t1.DBPEDIA, t1.WIKIDATA, t3.item, t2.max_score\
+FROM SYNSET_NOUNS_STAGING_KEA2 t1\
+INNER JOIN (\
+    SELECT id, MAX(CAST(CONFIDENCE AS DECIMAL(10,6))) AS max_score\
+    FROM SYNSET_NOUNS_STAGING_KEA2\
+    GROUP BY id\
+) t2 ON t1.id = t2.id AND CAST(t1.CONFIDENCE AS DECIMAL(10,6)) = t2.max_score\
+inner join wikidata_ili as t3 on t1.ili = t3.id\
+where t1.WIKIDATA = t3.item \
+and (t1.WIKIDATA != "http://www.wikidata.org/entity/Q10299641" and t1.wikidata IS NOT NULL)\
+order by t1.ILI\
+\'97> 5812\
+\
+\
+SELECT distinct t1.id, t1.ILI, t1.DBPEDIA, t1.WIKIDATA, t3.item, t2.max_score\
+FROM SYNSET_NOUNS_STAGING_KEA2 t1\
+INNER JOIN (\
+    SELECT id, MAX(CAST(CONFIDENCE AS DECIMAL(10,6))) AS max_score\
+    FROM SYNSET_NOUNS_STAGING_KEA2\
+    GROUP BY id\
+) t2 ON t1.id = t2.id AND CAST(t1.CONFIDENCE AS DECIMAL(10,6)) = t2.max_score\
+inner join wikidata_ili as t3 on t1.ili = t3.id\
+where t1.WIKIDATA <> t3.item \
+and (t1.WIKIDATA != "http://www.wikidata.org/entity/Q10299641" and t1.wikidata IS NOT NULL)\
+order by t1.ILI\
+\'97> 1300\
+\
+SELECT distinct(ILI)\
+FROM SYNSET_NOUNS_STAGING_KEA2 t1\
+INNER JOIN (\
+    SELECT id, MAX(CAST(CONFIDENCE AS DECIMAL(10,6))) AS max_score\
+    FROM SYNSET_NOUNS_STAGING_KEA2\
+    GROUP BY id\
+) t2 ON t1.id = t2.id AND CAST(t1.CONFIDENCE AS DECIMAL(10,6)) = t2.max_score\
+inner join wikidata_ili as t3 on t1.ili = t3.id\
+where t1.WIKIDATA = "http://www.wikidata.org/entity/Q10299641" or t1.wikidata IS NULL\
+\'97> 184\
+\
+\
+KEA + SPOTLIGHT\
+================\
+\
+with f1 as (\
+SELECT distinct t1.id, t1.ILI, t1.DBPEDIA, t1.WIKIDATA, t3.item, t2.max_score\
+FROM SYNSET_NOUNS_STAGING t1\
+INNER JOIN (\
+    SELECT id, MAX(CAST(CONFIDENCE AS DECIMAL(10,6))) AS max_score\
+    FROM SYNSET_NOUNS_STAGING\
+    GROUP BY id\
+) t2 ON t1.id = t2.id AND CAST(t1.CONFIDENCE AS DECIMAL(10,6)) = t2.max_score\
+inner join wikidata_ili as t3 on t1.ili = t3.id\
+where t1.WIKIDATA = t3.item \
+and (t1.WIKIDATA != "http://www.wikidata.org/entity/Q10299641" and t1.wikidata IS NOT NULL)\
+order by t1.ili\
+),\
+f2 as (\
+SELECT distinct t1.id, t1.ILI, t1.DBPEDIA, t1.WIKIDATA, t3.item, t2.max_score\
+FROM SYNSET_NOUNS_STAGING_KEA2 t1\
+INNER JOIN (\
+    SELECT id, MAX(CAST(CONFIDENCE AS DECIMAL(10,6))) AS max_score\
+    FROM SYNSET_NOUNS_STAGING_KEA2\
+    GROUP BY id\
+) t2 ON t1.id = t2.id AND CAST(t1.CONFIDENCE AS DECIMAL(10,6)) = t2.max_score\
+inner join wikidata_ili as t3 on t1.ili = t3.id\
+where t1.WIKIDATA = t3.item \
+and (t1.WIKIDATA != "http://www.wikidata.org/entity/Q10299641" and t1.wikidata IS NOT NULL)\
+order by t1.ILI\
+)\
+\
+SELECT * from f1 \
+inner join f2 on f1.ili = f2.ILI\
+where f1.wikidata = f2.wikidata\
+\
+\'97> 4360\
+\
+with f1 as (\
+SELECT distinct t1.id, t1.ILI, t1.DBPEDIA, t1.WIKIDATA, t3.item, t2.max_score\
+FROM SYNSET_NOUNS_STAGING t1\
+INNER JOIN (\
+    SELECT id, MAX(CAST(CONFIDENCE AS DECIMAL(10,6))) AS max_score\
+    FROM SYNSET_NOUNS_STAGING\
+    GROUP BY id\
+) t2 ON t1.id = t2.id AND CAST(t1.CONFIDENCE AS DECIMAL(10,6)) = t2.max_score\
+inner join wikidata_ili as t3 on t1.ili = t3.id\
+where t1.WIKIDATA <> t3.item \
+and (t1.WIKIDATA != "http://www.wikidata.org/entity/Q10299641" and t1.wikidata IS NOT NULL)\
+order by t1.ili\
+),\
+f2 as (\
+SELECT distinct t1.id, t1.ILI, t1.DBPEDIA, t1.WIKIDATA, t3.item, t2.max_score\
+FROM SYNSET_NOUNS_STAGING_KEA2 t1\
+INNER JOIN (\
+    SELECT id, MAX(CAST(CONFIDENCE AS DECIMAL(10,6))) AS max_score\
+    FROM SYNSET_NOUNS_STAGING_KEA2\
+    GROUP BY id\
+) t2 ON t1.id = t2.id AND CAST(t1.CONFIDENCE AS DECIMAL(10,6)) = t2.max_score\
+inner join wikidata_ili as t3 on t1.ili = t3.id\
+where t1.WIKIDATA <> t3.item \
+and (t1.WIKIDATA != "http://www.wikidata.org/entity/Q10299641" and t1.wikidata IS NOT NULL)\
+order by t1.ILI\
+)\
+\
+SELECT * from f1 \
+inner join f2 on f1.ili = f2.ILI\
+where f1.wikidata = f2.wikidata\
+\
+\'97> 200\
+\
+\
+\
+SELECT distinct t1.id, t1.ILI, t1.DBPEDIA, t1.WIKIDATA, t4.item, t3.max_score\
+FROM SYNSET_NOUNS_STAGING_KEA2 t1\
+inner join SYNSET_NOUNS_STAGING t2 on t1.ili = t2.ILI\
+INNER JOIN (\
+    SELECT t11.id, MAX(CAST(t11.CONFIDENCE AS DECIMAL(10,6)) + CAST(t21.CONFIDENCE AS DECIMAL(10,6))) AS max_score\
+    FROM SYNSET_NOUNS_STAGING_KEA2 t11\
+	inner join SYNSET_NOUNS_STAGING t21 on t11.ili = t21.ILI\
+	where t11.wikidata = t21.wikidata\
+    GROUP BY t11.id\
+) t3 ON t1.id = t3.id AND (CAST(t1.CONFIDENCE AS DECIMAL(10,6)) + CAST(t2.CONFIDENCE AS DECIMAL(10,6))) = t3.max_score\
+inner join wikidata_ili as t4 on t1.ili = t4.id\
+where t1.WIKIDATA = t4.item \
+and (t1.WIKIDATA != "http://www.wikidata.org/entity/Q10299641" and t1.wikidata IS NOT NULL)\
+order by t1.ILI\
+\
+\'97> 4484\
+\
+\
+SELECT distinct t1.id, t1.ILI, t1.DBPEDIA, t1.WIKIDATA, t4.item, t3.max_score\
+FROM SYNSET_NOUNS_STAGING_KEA2 t1\
+inner join SYNSET_NOUNS_STAGING t2 on t1.ili = t2.ILI\
+INNER JOIN (\
+    SELECT t11.id, MAX(CAST(t11.CONFIDENCE AS DECIMAL(10,6)) + CAST(t21.CONFIDENCE AS DECIMAL(10,6))) AS max_score\
+    FROM SYNSET_NOUNS_STAGING_KEA2 t11\
+	inner join SYNSET_NOUNS_STAGING t21 on t11.ili = t21.ILI\
+	where t11.wikidata = t21.wikidata\
+    GROUP BY t11.id\
+) t3 ON t1.id = t3.id AND (CAST(t1.CONFIDENCE AS DECIMAL(10,6)) + CAST(t2.CONFIDENCE AS DECIMAL(10,6))) = t3.max_score\
+inner join wikidata_ili as t4 on t1.ili = t4.id\
+where t1.WIKIDATA <>  t4.item \
+and (t1.WIKIDATA != "http://www.wikidata.org/entity/Q10299641" and t1.wikidata IS NOT NULL)\
+order by t1.ILI\
+\
+\'97> 344\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+\
+}
