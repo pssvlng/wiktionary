@@ -2,7 +2,7 @@
 \cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
 {\colortbl;\red255\green255\blue255;}
 {\*\expandedcolortbl;;}
-\paperw11900\paperh16840\margl1440\margr1440\vieww37900\viewh17960\viewkind0
+\paperw11900\paperh16840\margl1440\margr1440\vieww37600\viewh17960\viewkind0
 \pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
 
 \f0\fs24 \cf0 Spotlight and KEA comparison query with McCrae Hapax Algorithm\
@@ -204,7 +204,21 @@ order by t1.ILI\
 \'97> 344\
 \
 \
-\
+SELECT distinct t1.id, t1.ILI, t5.lemmas, t5.DESCRIPTION, t1.WIKIDATA as SUGGESTED, t4.item as CURRENT\
+FROM SYNSET_NOUNS_STAGING_KEA2 t1\
+inner join SYNSET_NOUNS_STAGING t2 on t1.ili = t2.ILI\
+INNER JOIN (\
+    SELECT t11.id, MAX(CAST(t11.CONFIDENCE AS DECIMAL(10,6)) + CAST(t21.CONFIDENCE AS DECIMAL(10,6))) AS max_score\
+    FROM SYNSET_NOUNS_STAGING_KEA2 t11\
+	inner join SYNSET_NOUNS_STAGING t21 on t11.ili = t21.ILI\
+	where t11.wikidata = t21.wikidata\
+    GROUP BY t11.id\
+) t3 ON t1.id = t3.id AND (CAST(t1.CONFIDENCE AS DECIMAL(10,6)) + CAST(t2.CONFIDENCE AS DECIMAL(10,6))) = t3.max_score\
+inner join wikidata_ili as t4 on t1.ili = t4.id\
+inner join WORDNET_EN_SYNSET_LEMMA_LOOKUP as t5 on t1.ili = t5.ili\
+where t1.WIKIDATA <>  t4.item \
+and (t1.WIKIDATA != "http://www.wikidata.org/entity/Q10299641" and t1.wikidata IS NOT NULL)\
+order by t1.ILI\
 \
 \
 \

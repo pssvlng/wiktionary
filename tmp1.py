@@ -1,5 +1,6 @@
 from collections import defaultdict
 import json
+import sqlite3
 from rdflib import Graph, URIRef, Literal
 from rdflib.namespace import RDF, SKOS 
 import wn
@@ -66,7 +67,36 @@ def get_recursive_hyponym_cnt(synset):
         count += get_recursive_hyponym_cnt(hyponym)
     
     return count
-    
+
+def create_lemma_synset_lookup():
+    conn = sqlite3.connect('synset_noun_en.db')    
+    cursor = conn.cursor()    
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS WORDNET_EN_SYNSET_LEMMA_LOOKUP
+        (ID          TEXT    NOT NULL,
+        ILI          TEXT    NOT NULL,         
+        LEMMAS      TEXT     NOT NULL,
+        DESCRIPTION            TEXT NOT NULL)
+    ''')    
+    conn.commit()    
+
+    data_to_insert = []
+    for idx, synset in enumerate(wn.synsets(lang='en')):
+        data_to_insert.append((synset.id, synset.ili.id, ', '.join(synset.lemmas()), synset.definition()))
+
+        if idx % 5000 == 0:
+            cursor.executemany('''
+            INSERT INTO WORDNET_EN_SYNSET_LEMMA_LOOKUP (ID, ILI, LEMMAS, DESCRIPTION) VALUES (?, ?, ?, ?)
+            ''', data_to_insert)
+            data_to_insert.clear()
+            conn.commit()
+
+    cursor.executemany('''
+            INSERT INTO WORDNET_EN_SYNSET_LEMMA_LOOKUP (ID, ILI, LEMMAS, DESCRIPTION) VALUES (?, ?, ?, ?)
+            ''', data_to_insert)
+    conn.commit()
+    conn.close()
+
 if __name__ == "__main__":
     # Example usage
     input_ttl_file = 'input.ttl'
@@ -84,5 +114,6 @@ if __name__ == "__main__":
 
     #generate_image_open_ai()
 
-    synset = wn.synset('ewn-11445694-n')
-    print(get_recursive_hyponym_cnt(synset))
+    #synset = wn.synset('ewn-11445694-n')
+    #print(get_recursive_hyponym_cnt(synset))
+    create_lemma_synset_lookup()
