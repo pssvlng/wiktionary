@@ -2,11 +2,14 @@
 \cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
 {\colortbl;\red255\green255\blue255;}
 {\*\expandedcolortbl;;}
+{\*\listtable{\list\listtemplateid1\listhybrid{\listlevel\levelnfc23\levelnfcn23\leveljc0\leveljcn0\levelfollow0\levelstartat1\levelspace360\levelindent0{\*\levelmarker \{hyphen\}}{\leveltext\leveltemplateid1\'01\uc0\u8259 ;}{\levelnumbers;}\fi-360\li720\lin720 }{\listname ;}\listid1}}
+{\*\listoverridetable{\listoverride\listid1\listoverridecount0\ls1}}
 \paperw11900\paperh16840\margl1440\margr1440\vieww37600\viewh17960\viewkind0
+\pard\tx220\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\li720\fi-720\pardirnatural\partightenfactor0
+\ls1\ilvl0
+\f0\fs24 \cf0 {\listtext	\uc0\u8259 	}Spotlight and KEA comparison query with McCrae Hapax Algorithm\
 \pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
-
-\f0\fs24 \cf0 Spotlight and KEA comparison query with McCrae Hapax Algorithm\
-====================================================\
+\cf0 ====================================================\
 \
 \
 SPOTLIGHT\
@@ -203,6 +206,7 @@ order by t1.ILI\
 \
 \'97> 344\
 \
+\'97\'97\'97\
 \
 SELECT distinct t1.id, t1.ILI, t5.lemmas, t5.DESCRIPTION, t1.WIKIDATA as SUGGESTED, t4.item as CURRENT\
 FROM SYNSET_NOUNS_STAGING_KEA2 t1\
@@ -221,12 +225,92 @@ and (t1.WIKIDATA != "http://www.wikidata.org/entity/Q10299641" and t1.wikidata I
 order by t1.ILI\
 \
 \
+\'97\'97\'97\
+\
+\
+SELECT distinct t1.id, t1.ILI, t4.lemmas, t4.description, t1.dbpedia, t1.WIKIDATA AS SUGGESTED, t3.max_score\
+FROM SYNSET_NOUNS_STAGING_KEA2 t1\
+inner join SYNSET_NOUNS_STAGING t2 on t1.ili = t2.ILI\
+INNER JOIN (\
+    SELECT t11.id, MAX(CAST(t11.CONFIDENCE AS DECIMAL(10,6)) + CAST(t21.CONFIDENCE AS DECIMAL(10,6))) AS max_score\
+    FROM SYNSET_NOUNS_STAGING_KEA2 t11\
+	inner join SYNSET_NOUNS_STAGING t21 on t11.ili = t21.ILI\
+	where t11.wikidata = t21.wikidata\
+    GROUP BY t11.id\
+) t3 ON t1.id = t3.id AND (CAST(t1.CONFIDENCE AS DECIMAL(10,6)) + CAST(t2.CONFIDENCE AS DECIMAL(10,6))) = t3.max_score\
+ INNER JOIN WORDNET_EN_SYNSET_LEMMA_LOOKUP t4 on t4.id = t1.id\
+ where (t1.WIKIDATA != "http://www.wikidata.org/entity/Q10299641" and t1.wikidata IS NOT NULL)\
+and t1.id not in (\
+select WN_ID from WORDNET_WIKIDATA_ILI_ID\
+)\
+and t1.ili not in (\
+select id from wikidata_ili\
+)\
+and t1.WIKIDATA not in (\
+select item from wikidata_ili\
+)\
+and t1.wikidata not in (\
+select WD_ID from WORDNET_WIKIDATA_ILI_ID\
+)\
+ order by t3.max_score desc\
 \
 \
 \
+\'97\'97\'97\
+BabelNet\
+\
+John:\
+select * from babel_wn_30 t1 \
+inner join wn_30_wn_31 t2 on t1.identifier  = t2.identifier_30\
+inner join wikidata_ili t3 on t3.id = t4.ili\
+inner join WORDNET_EN_SYNSET_LEMMA_LOOKUP t4 on t4.ID = t2.id_31\
+where t1.wikidata = t3.item\
+\
+Krasimir:\
+select * from babel_wn_30 t1 \
+inner join wn_30_wn_31 t2 on t1.identifier  = t2.identifier_30\
+where id_31 not in (\
+select wn_id from WORDNET_WIKIDATA_ILI_ID\
+union \
+select id from SPOTLIGHT_KEA_REFINED\
+UNION\
+select t2.ID from wikidata_ili t1\
+inner join WORDNET_EN_SYNSET_LEMMA_LOOKUP t2 on t1.id = t2.ili\
+)\
+and t1.wikidata not in (\
+select item from wikidata_ili\
+UNION\
+select WD_ID from WORDNET_WIKIDATA_ILI_ID\
+UNION\
+select SUGGESTED from SPOTLIGHT_KEA_REFINED\
+)\
+\
+Yovisto:\
+select * from babel_wn_30 t1 \
+inner join wn_30_wn_31 t2 on t1.identifier  = t2.identifier_30\
+inner join SPOTLIGHT_KEA_REFINED t3 on t3.ID = t2.id_31\
+inner join WORDNET_EN_SYNSET_LEMMA_LOOKUP t4 on t4.ID = t2.id_31\
+where t1.wikidata != t3.SUGGESTED\
 \
 \
-\
+BabelNet unique:\
+select * from babel_wn_30 t1 \
+inner join wn_30_wn_31 t2 on t1.identifier  = t2.identifier_30\
+where id_31 not in (\
+select wn_id from WORDNET_WIKIDATA_ILI_ID\
+union \
+select id from SPOTLIGHT_KEA_REFINED\
+UNION\
+select t2.ID from wikidata_ili t1\
+inner join WORDNET_EN_SYNSET_LEMMA_LOOKUP t2 on t1.id = t2.ili\
+)\
+and t1.wikidata not in (\
+select item from wikidata_ili\
+UNION\
+select WD_ID from WORDNET_WIKIDATA_ILI_ID\
+UNION\
+select SUGGESTED from SPOTLIGHT_KEA_REFINED\
+)\
 \
 \
 }
